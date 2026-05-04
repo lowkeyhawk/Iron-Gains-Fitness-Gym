@@ -21,6 +21,7 @@ export const API_ENDPOINTS = {
     GET_USER_MEMBERSHIP: `${API_BASE_URL}/get_user_membership.php`,
     GET_MEMBERSHIP_PLANS: `${API_BASE_URL}/get_membership_plans.php`,
     UPDATE_PROFILE: `${API_BASE_URL}/pages/update_profile_member.php`,
+    GET_MEMBERS: `${API_BASE_URL}/pages/get_members.php`,
 
     // QR CODE
     GENERATE_QR: `${API_BASE_URL}/generate_qr_token.php`,
@@ -48,7 +49,7 @@ export const API_ENDPOINTS = {
     REFRESH_TOKEN: `${API_BASE_URL}/auth/refresh_token.php`,
     VALIDATE_TOKEN: `${API_BASE_URL}/auth/validate_token.php`,
 
-    REVIEW_VERIFICATION: `${API_BASE_URL}/pages/student/review_verification.php`,
+    APPROVE_VERIFICATION: `${API_BASE_URL}/pages/student/review_verification.php`,
     SUBMIT_STUDENT_VERIFICATION: `${API_BASE_URL}/pages/student/submit_student_verification.php`,
 };
 

@@ -478,34 +478,37 @@ export default function Profile({ navigation }) {
                     </View>
                 </View>
                 
-                <View style={[styles.section]}>
-                    <View style={styles.infoRow}>
-                        <Ionicons name="refresh-outline" size={20} color="#E3B23C" />
+                {/* Only show auto-renew if user has a plan */}
+                {user?.plan && getDaysLeft(user.plan.expires_at) > 0 && (
+                    <View style={[styles.section]}>
+                        <View style={styles.infoRow}>
+                            <Ionicons name="refresh-outline" size={20} color="#E3B23C" />
 
-                        <View style={[styles.infoContent, { flex: 1 }]}>
-                            <Text style={styles.infoLabel}>Auto-Renew</Text>
-                            <Text style={styles.infoValue}>
-                                Enable auto-renew notification
-                            </Text>
+                            <View style={[styles.infoContent, { flex: 1 }]}>
+                                <Text style={styles.infoLabel}>Auto-Renew</Text>
+                                <Text style={styles.infoValue}>
+                                    Enable auto-renew notification
+                                </Text>
+                            </View>
+
+                            <TouchableOpacity
+                                onPress={toggleAutoRenew}
+                                disabled={loadingAutoRenew}
+                                style={{
+                                    paddingHorizontal: 12,
+                                    paddingVertical: 6,
+                                    backgroundColor: autoRenew ? '#4CAF50' : '#444',
+                                    borderRadius: 20,
+                                    minWidth: 50,
+                                    alignItems: 'center',
+                                }}>
+                                <Text style={{ color: '#fff', fontWeight: 'bold' }}>
+                                    {loadingAutoRenew ? '...' : autoRenew ? 'ON' : 'OFF'}
+                                </Text>
+                            </TouchableOpacity>
                         </View>
-
-                        <TouchableOpacity
-                            onPress={toggleAutoRenew}
-                            disabled={loadingAutoRenew}
-                            style={{
-                                paddingHorizontal: 12,
-                                paddingVertical: 6,
-                                backgroundColor: autoRenew ? '#4CAF50' : '#444',
-                                borderRadius: 20,
-                                minWidth: 50,
-                                alignItems: 'center',
-                            }}>
-                            <Text style={{ color: '#fff', fontWeight: 'bold' }}>
-                                {loadingAutoRenew ? '...' : autoRenew ? 'ON' : 'OFF'}
-                            </Text>
-                        </TouchableOpacity>
                     </View>
-                </View>
+                )}
 
                 {/* User Details - EDITABLE */}
                 <View style={styles.section}>

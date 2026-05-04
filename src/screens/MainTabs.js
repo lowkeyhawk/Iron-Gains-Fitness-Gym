@@ -63,9 +63,11 @@ export default function MainTabs() {
                     ),
                 })}
             >
-                {hasMembership && (
+                {/* {hasMembership && (
                     <Tab.Screen name="Home" component={Home} />
-                )}
+                )} */}
+
+                <Tab.Screen name="Home" component={Home} />
                 
                 {hasMembership ? (
                     <Tab.Screen

@@ -161,7 +161,7 @@ const styles = StyleSheet.create({
     },
     panel: {
         backgroundColor: '#1f1f1f',
-        borderRadius: 12,
+        borderRadius: 4,
         width: 320,
         maxHeight: 480,
         borderColor: '#3d3d3d',

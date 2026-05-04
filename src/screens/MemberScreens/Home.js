@@ -25,7 +25,7 @@ import { useNavigation } from '@react-navigation/native';
 
 const { width } = Dimensions.get('window');
 const PHOTO_WIDTH = (width - 48) / 2.5;
-const ITEM_WIDTH = width * 0.75; // 👈 shows side previews
+const ITEM_WIDTH = width * 0.75;
 const SPACING = 12;
 
 export default function Home() {
@@ -35,6 +35,7 @@ export default function Home() {
     const [userImage, setUserImage] = useState(null);
     const [gymData, setGymData] = useState(null);
     const [loading, setLoading] = useState(true);
+    const [verificationBannerDismissed, setVerificationBannerDismissed] = useState(false);
     const scrollViewRef = useRef(null);
 
     const navigation = useNavigation();
@@ -48,6 +49,33 @@ export default function Home() {
         </Svg>
     );
 
+    // ✅ Load dismissed state from AsyncStorage
+    useEffect(() => {
+        const loadBannerState = async () => {
+            try {
+                const key = `verification_banner_dismissed_${user?.id}`;
+                const dismissed = await AsyncStorage.getItem(key);
+                if (dismissed === 'true') {
+                    setVerificationBannerDismissed(true);
+                }
+            } catch (err) {
+                console.error(err);
+            }
+        };
+        if (user?.id) loadBannerState();
+    }, [user?.id]);
+
+    // ✅ Persist dismissed state forever
+    const handleDismissBanner = async () => {
+        try {
+            const key = `verification_banner_dismissed_${user?.id}`;
+            await AsyncStorage.setItem(key, 'true');
+            setVerificationBannerDismissed(true);
+        } catch (err) {
+            console.error(err);
+        }
+    };
+
     // Load user from AsyncStorage
     const loadUser = useCallback(async () => {
         try {
@@ -58,13 +86,35 @@ export default function Home() {
                 if (parsed.profile_picture) {
                     setUserImage(parsed.profile_picture);
                 }
+
+                try {
+                    const membersRes = await fetch(
+                        `${API_ENDPOINTS.GET_MEMBERS}?search=${parsed.email}&limit=1`
+                    );
+                    const membersData = await membersRes.json();
+
+                    if (membersData.status === 'success' && membersData.data?.length > 0) {
+                        const freshData = membersData.data[0];
+                        const freshUser = {
+                            ...parsed,
+                            verification_status: freshData.verification_status,
+                            memberType: freshData.member_type,
+                        };
+                        // Update AsyncStorage
+                        await AsyncStorage.setItem('user', JSON.stringify(freshUser));
+                        // Update context so banner reflects latest status
+                        setUser(freshUser);
+                    }
+                } catch (err) {
+                    console.error('Failed to fetch fresh user data:', err);
+                }
             }
         } catch (error) {
             console.error('Error loading user:', error);
         }
     }, []);
 
-    // Local slider images using correct path
+    // Local slider images
     const sliderImages = [
         { id: '1', source: require('../../../assets/slider-images/1.jpg') },
         { id: '2', source: require('../../../assets/slider-images/2.jpg') },
@@ -72,7 +122,7 @@ export default function Home() {
         { id: '4', source: require('../../../assets/slider-images/4.jpg') },
         { id: '5', source: require('../../../assets/slider-images/5.jpg') },
     ];
- 
+
     useEffect(() => {
         sliderImages.forEach((img) => {
             console.log(`Image ${img.id} source:`, img.source);
@@ -82,16 +132,16 @@ export default function Home() {
     // Fetch gym data
     const fetchGymData = useCallback(async () => {
         try {
-            const gymInfoUrl = `${API_ENDPOINTS.GET_GYM_INFO}`;            
-            const response = await fetch(gymInfoUrl);            
+            const gymInfoUrl = `${API_ENDPOINTS.GET_GYM_INFO}`;
+            const response = await fetch(gymInfoUrl);
             const responseText = await response.text();
-            
+
             if (!response.ok) {
                 throw new Error(`HTTP error! status: ${response.status}`);
             }
-            
+
             const result = JSON.parse(responseText);
-            
+
             if (result.status === 'success' && result.data) {
                 setGymData({
                     ...result.data,
@@ -101,14 +151,12 @@ export default function Home() {
             } else {
                 throw new Error(result.message || 'No data returned');
             }
-        } catch (error) {            
-            // Fallback to mock data with local images
+        } catch (error) {
             setGymData({
                 name: 'Iron Gains Fitness Gym',
                 location: 'Tuguegarao',
                 address: 'Mabini Street Corner Aguinaldo Street, Tuguegarao City, Philippines, 3500',
                 hours: ['Mon - Sat - (8:00 AM – 10:00 PM)', 'Sun - (2:00 PM - 9:00 PM)'],
-                // amenities: ['Weights', 'Sauna', 'Pool', 'Classes'],
                 phone_number: '+63 917 123 4567',
                 photos: sliderImages,
             });
@@ -143,7 +191,7 @@ export default function Home() {
             await Promise.all([
                 loadUser(),
                 fetchGymData(),
-                refetch()
+                refetch(),
             ]);
         } catch (error) {
             console.error('Refresh error:', error);
@@ -152,7 +200,6 @@ export default function Home() {
         }
     }, [loadUser, fetchGymData, refetch]);
 
-    // Get current date and greeting
     const getCurrentDate = () => {
         const options = { weekday: 'long', month: 'short', day: 'numeric' };
         return new Date().toLocaleDateString('en-US', options);
@@ -165,7 +212,6 @@ export default function Home() {
         return 'Good evening';
     };
 
-    // Helper functions
     const getSavedFullName = () => {
         if (!user) return 'User';
         const { first_name, middle_name, last_name } = user;
@@ -205,7 +251,6 @@ export default function Home() {
     };
 
     const handleQRPress = () => {
-        // Navigate to QR screen
         navigation.navigate('QRCode');
     };
 
@@ -241,7 +286,7 @@ export default function Home() {
 
     return (
         <View style={styles.container}>
-            {/* Header with Notification Bell */}
+            {/* Header */}
             <View style={styles.header}>
                 <View>
                     <Text style={styles.dateText}>{getCurrentDate()}</Text>
@@ -270,9 +315,53 @@ export default function Home() {
                     />
                 }
             >
+                
+
+                {/* ✅ Verification Status Banner */}
+                {user?.memberType === 'student' && !verificationBannerDismissed && (
+                    <View style={[
+                        styles.verificationBanner,
+                        user?.verification_status === 'approved'
+                            ? styles.verificationApproved
+                            : styles.verificationPending
+                    ]}>
+                        <View style={styles.verificationBannerLeft}>
+                            <Ionicons
+                                name={user?.verification_status === 'approved' ? 'checkmark-circle' : 'time-outline'}
+                                size={20}
+                                color={user?.verification_status === 'approved' ? '#22c55e' : '#E3B23C'}
+                            />
+                            <View style={{ flex: 1 }}>
+                                <Text style={[
+                                    styles.verificationBannerTitle,
+                                    { color: user?.verification_status === 'approved' ? '#22c55e' : '#E3B23C' }
+                                ]}>
+                                    {user?.verification_status === 'approved'
+                                        ? 'Account Verified!'
+                                        : 'Pending Verification'}
+                                </Text>
+                                <Text style={styles.verificationBannerText}>
+                                    {user?.verification_status === 'approved'
+                                        ? 'Your student account has been approved. You can now avail student plans.'
+                                        : "Your student ID is being reviewed. You'll be notified once approved."}
+                                </Text>
+                            </View>
+                        </View>
+
+                        {/* ✅ Close only shown when approved, persists forever via AsyncStorage */}
+                        {user?.verification_status === 'approved' && (
+                            <TouchableOpacity
+                                onPress={handleDismissBanner}
+                                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                            >
+                                <Ionicons name="close" size={20} color="#22c55e" />
+                            </TouchableOpacity>
+                        )}
+                    </View>
+                )}
+
                 {/* Membership Card */}
                 <View style={styles.membershipCard}>
-                    {/* Card Header */}
                     <View style={styles.cardHeader}>
                         <View style={styles.gymNameSection}>
                             <View style={styles.gymIcon}>
@@ -281,23 +370,15 @@ export default function Home() {
                             <Text style={styles.gymName}>{gymData?.name || 'FITNESS GYM'}</Text>
                         </View>
                         <View style={styles.activeBadge}>
-                            <View style={[
-                                styles.activeDot,
-                                { backgroundColor: getStatusColor() }
-                            ]} />
-                            <Text style={[
-                                styles.activeText,
-                                { color: getStatusColor() }
-                            ]}>
+                            <View style={[styles.activeDot, { backgroundColor: getStatusColor() }]} />
+                            <Text style={[styles.activeText, { color: getStatusColor() }]}>
                                 {getStatusText()}
                             </Text>
                         </View>
                     </View>
 
-                    {/* Divider */}
                     <View style={styles.divider} />
 
-                    {/* Membership Info */}
                     <View style={styles.membershipInfo}>
                         <Text style={styles.membershipType}>
                             {user?.plan?.name || 'FREE'} MEMBER
@@ -305,7 +386,6 @@ export default function Home() {
                         <Text style={styles.memberName}>{getSavedFullName()}</Text>
                     </View>
 
-                    {/* Member Details */}
                     <View style={styles.detailsRow}>
                         <View style={styles.detailItem}>
                             <Text style={styles.detailLabel}>MEMBER SINCE</Text>
@@ -324,10 +404,7 @@ export default function Home() {
 
                 {/* Action Buttons */}
                 <View style={styles.actionButtons}>
-                    <TouchableOpacity
-                        style={styles.qrButton}
-                        onPress={handleQRPress}
-                    >
+                    <TouchableOpacity style={styles.qrButton} onPress={handleQRPress}>
                         <MaterialIcons name="qr-code-2" size={28} color="#191919" />
                         <Text style={styles.qrButtonText}>Show QR</Text>
                     </TouchableOpacity>
@@ -340,7 +417,6 @@ export default function Home() {
                         <Text style={styles.gymNameBig}>{gymData.name}</Text>
                         <Text style={styles.gymLocationText}>{gymData.location}</Text>
 
-                        {/* Gym Photos Carousel */}
                         {gymData.photos && gymData.photos.length > 0 && (
                             <ScrollView
                                 horizontal
@@ -352,39 +428,27 @@ export default function Home() {
                             >
                                 {gymData.photos.map((photo) => (
                                     <View key={photo.id} style={styles.photoItem}>
-                                        <Image
-                                            source={photo.source}
-                                            style={styles.photoImage}
-                                        />
+                                        <Image source={photo.source} style={styles.photoImage} />
                                     </View>
                                 ))}
                             </ScrollView>
                         )}
 
-                        {/* Gym Details Box */}
                         <View style={styles.detailsBox}>
-                            {/* Address */}
-                            <TouchableOpacity
-                                style={styles.detailRowBox}
-                                onPress={handleMapPress}
-                            >
+                            <TouchableOpacity style={styles.detailRowBox} onPress={handleMapPress}>
                                 <MaterialIcons name="location-on" size={20} color="#D4AF37" />
                                 <Text style={styles.detailRowText}>{gymData.address}</Text>
                             </TouchableOpacity>
 
-                            {/* Hours */}
                             <View style={styles.detailRowBox}>
                                 <MaterialIcons name="access-time" size={20} color="#D4AF37" />
                                 <View style={{ flexDirection: 'column' }}>
                                     {gymData.hours.map((hour, index) => (
-                                        <Text key={index} style={styles.detailRowText}>
-                                            {hour}
-                                        </Text>
+                                        <Text key={index} style={styles.detailRowText}>{hour}</Text>
                                     ))}
                                 </View>
                             </View>
 
-                            {/* Phone */}
                             <TouchableOpacity
                                 style={[styles.detailRowBox, { marginBottom: 0 }]}
                                 onPress={handleCallGym}
@@ -393,7 +457,6 @@ export default function Home() {
                                 <Text style={styles.detailRowText}>{gymData.phone_number}</Text>
                             </TouchableOpacity>
 
-                            {/* Amenities */}
                             {gymData.amenities && gymData.amenities.length > 0 && (
                                 <View style={styles.amenitiesContainer}>
                                     {gymData.amenities.map((amenity, index) => (
@@ -406,17 +469,6 @@ export default function Home() {
                         </View>
                     </View>
                 )}
-
-                {/* Logout Button */}
-                {/* <TouchableOpacity
-                    style={styles.logoutButton}
-                    onPress={handleLogout}
-                >
-                    <Ionicons name="log-out-outline" size={20} color="#ff4444" />
-                    <Text style={styles.logoutText}>Sign Out</Text>
-                </TouchableOpacity>
-
-                <View style={styles.bottomSpace} /> */}
             </ScrollView>
         </View>
     );
@@ -437,8 +489,6 @@ const styles = StyleSheet.create({
         marginTop: 12,
         fontSize: 16,
     },
-
-    // Header
     header: {
         flexDirection: 'row',
         justifyContent: 'space-between',
@@ -463,14 +513,10 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         gap: 12,
     },
-
-    // Scroll Content
     scrollContent: {
         paddingHorizontal: 16,
         paddingTop: 8,
     },
-
-    // Membership Card
     membershipCard: {
         backgroundColor: '#262626',
         borderRadius: 16,
@@ -526,15 +572,11 @@ const styles = StyleSheet.create({
         fontWeight: '700',
         color: '#D4AF37',
     },
-
-    // Divider
     divider: {
         height: 1,
         backgroundColor: '#404040',
         marginVertical: 16,
     },
-
-    // Membership Info
     membershipInfo: {
         marginBottom: 28,
     },
@@ -544,15 +586,13 @@ const styles = StyleSheet.create({
         fontWeight: '600',
         marginBottom: 6,
         letterSpacing: 0.5,
-        textTransform: 'uppercase'
+        textTransform: 'uppercase',
     },
     memberName: {
         fontSize: 30,
         fontWeight: '700',
         color: '#fff',
     },
-
-    // Details Row
     detailsRow: {
         flexDirection: 'row',
         justifyContent: 'space-between',
@@ -573,7 +613,40 @@ const styles = StyleSheet.create({
         color: '#fff',
     },
 
-    // Action Buttons
+    verificationBanner: {
+        flexDirection: 'row',
+        alignItems: 'start',
+        justifyContent: 'space-between',
+        borderRadius: 12,
+        padding: 14,
+        marginBottom: 16,
+        borderWidth: 1,
+    },
+    verificationPending: {
+        backgroundColor: '#1a1400',
+        borderColor: '#E3B23C44',
+    },
+    verificationApproved: {
+        backgroundColor: '#052e16',
+        borderColor: '#22c55e44',
+    },
+    verificationBannerLeft: {
+        flexDirection: 'row',
+        alignItems: 'flex-start',
+        gap: 10,
+        flex: 1,
+    },
+    verificationBannerTitle: {
+        fontSize: 14,
+        fontWeight: '700',
+        marginBottom: 2,
+    },
+    verificationBannerText: {
+        fontSize: 12,
+        color: '#9ca3af',
+        lineHeight: 18,
+    },
+
     actionButtons: {
         flexDirection: 'row',
         gap: 12,
@@ -592,8 +665,6 @@ const styles = StyleSheet.create({
         fontSize: 14,
         fontWeight: '700',
     },
-
-    // Gym Section
     gymSection: {
         marginBottom: 16,
     },
@@ -616,8 +687,6 @@ const styles = StyleSheet.create({
         color: '#9ca3af',
         fontWeight: '500',
     },
-
-    // Photos Carousel
     photosScroll: {
         marginHorizontal: -16,
         marginBottom: 16,
@@ -626,16 +695,6 @@ const styles = StyleSheet.create({
         paddingHorizontal: 16,
         gap: 4,
     },
-    // photoItem: {
-    //     width: PHOTO_WIDTH,
-    //     aspectRatio: 4 / 3,
-    // },
-    // photoImage: {
-    //     width: '100%',
-    //     height: '100%',
-    //     borderRadius: 12,
-    // },
-
     photoItem: {
         width: ITEM_WIDTH,
         aspectRatio: 16 / 9,
@@ -646,7 +705,6 @@ const styles = StyleSheet.create({
         height: '100%',
         borderRadius: 16,
     },
-    // Details Box
     detailsBox: {
         backgroundColor: '#262626',
         borderRadius: 12,
@@ -666,8 +724,6 @@ const styles = StyleSheet.create({
         fontWeight: '500',
         flex: 1,
     },
-
-    // Amenities
     amenitiesContainer: {
         flexDirection: 'row',
         flexWrap: 'wrap',
@@ -687,28 +743,4 @@ const styles = StyleSheet.create({
         color: '#9ca3af',
         fontWeight: '500',
     },
-
-    // Logout Button
-    // logoutButton: {
-    //     flexDirection: 'row',
-    //     backgroundColor: '#2a1a1a',
-    //     borderRadius: 12,
-    //     paddingVertical: 14,
-    //     justifyContent: 'center',
-    //     alignItems: 'center',
-    //     marginBottom: 20,
-    //     borderWidth: 1,
-    //     borderColor: '#ff4444',
-    // },
-    // logoutText: {
-    //     color: '#ff4444',
-    //     fontWeight: '700',
-    //     fontSize: 14,
-    //     marginLeft: 8,
-    // },
-
-    // // Bottom Space
-    // bottomSpace: {
-    //     height: 10,
-    // },
 });
