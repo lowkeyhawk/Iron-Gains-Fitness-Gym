@@ -17,8 +17,10 @@ import { Ionicons } from '@expo/vector-icons';
 import { AuthContext } from "../../context/AuthContext";
 import { useFocusEffect } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { API_ENDPOINTS } from '../../../config';
+import { API_ENDPOINTS, API_BASE_URL } from '../../../config';
 import Svg, { Path } from "react-native-svg";
+
+import * as ImagePicker from 'expo-image-picker';
 
 export default function Profile({ navigation }) {
     const { user, logout, setUser } = useContext(AuthContext);
@@ -290,8 +292,87 @@ export default function Profile({ navigation }) {
         return 'Active';
     };
 
-    const handleChangeAvatar = () => {
-        Alert.alert('Coming Soon', 'Avatar upload feature coming soon!');
+    // const handleChangeAvatar = () => {
+    //     Alert.alert('Coming Soon', 'Avatar upload feature coming soon!');
+    // };
+
+    const handleChangeAvatar = async () => {
+        try {
+            const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+
+            if (!permission.granted) {
+                Alert.alert('Permission required', 'Please allow access to your photos.');
+                return;
+            }
+
+            const result = await ImagePicker.launchImageLibraryAsync({
+                mediaTypes: ImagePicker.MediaTypeOptions.Images,
+                allowsEditing: true,
+                aspect: [1, 1],
+                quality: 0.7,
+            });
+
+            if (result.canceled) return;
+
+            const image = result.assets[0];
+
+            const formData = new FormData();
+            formData.append('user_id', user.id);
+            formData.append('role', user.role);
+
+            formData.append('avatar', {
+                uri: image.uri,
+                name: 'avatar.jpg',
+                type: 'image/jpeg',
+            });
+
+            const url = `${API_BASE_URL}/upload-avatar.php`;
+
+            const res = await fetch(url, {
+                method: 'POST',
+                body: formData,
+                headers: {
+                    Accept: 'application/json',
+                },
+            });
+
+            const text = await res.text(); // IMPORTANT for debugging
+
+            let data;
+            try {
+                data = JSON.parse(text);
+            } catch (e) {
+                console.error("Invalid JSON from server:", text);
+                Alert.alert('Error', 'Server returned invalid response');
+                return;
+            }
+
+            if (data.status === 'success') {
+
+                // IMPORTANT: ensure full URL
+                const newAvatarUrl = data.profile_picture.startsWith('http')
+                    ? data.profile_picture
+                    : `${API_BASE_URL}/api/uploads/${data.profile_picture}`;
+
+                const updatedUser = {
+                    ...user,
+                    profile_picture: newAvatarUrl,
+                };
+
+                setUser(updatedUser);
+                setProfileImage(newAvatarUrl);
+
+                await AsyncStorage.setItem('user', JSON.stringify(updatedUser));
+
+                Alert.alert('Success', 'Profile picture updated!');
+            } else {
+                Alert.alert('Error', data.message || 'Upload failed');
+            }
+
+        } catch (err) {
+            console.error(err);
+            Alert.alert('Error', 'Something went wrong while uploading image.');
+        }
     };
 
     const handleLogout = () => {
@@ -328,6 +409,26 @@ export default function Profile({ navigation }) {
                 ]
             );
         }
+    };
+
+    const handleRenewMembership = () => {
+        Alert.alert(
+            'Renew Membership',
+            'Are you sure you want to renew your membership?',
+            [
+                {
+                    text: 'No, Keep It',
+                    style: 'cancel',
+                },
+                {
+                    text: 'Yes, Renew',
+                    onPress: async () => {
+                        Alert.alert('Success', 'Membership renewed successfully');
+                    },
+                    style: 'destructive',
+                },
+            ]
+        );
     };
 
     const handleCancelMembership = () => {
@@ -455,8 +556,11 @@ export default function Profile({ navigation }) {
                         <View style={styles.avatarContainer}>
                             {profileImage || user?.profile_picture ? (
                                 <Image
-                                    source={{ uri: profileImage || user?.profile_picture }}
+                                    source={{
+                                        uri: profileImage || user?.profile_picture
+                                    }}
                                     style={styles.avatar}
+                                    resizeMode="cover"
                                 />
                             ) : (
                                 <View style={styles.avatarPlaceholder}>
@@ -685,12 +789,11 @@ export default function Profile({ navigation }) {
                 </View>
 
                 {/* Membership Details */}
-                {user?.plan && (
+                {/* {user?.plan && (
                     <View style={styles.section}>
                         <Text style={styles.sectionTitle}>Membership Details</Text>
 
                         <View style={styles.infoCard}>
-                            {/* Status */}
                             <View style={styles.infoRow}>
                                 <Ionicons name="checkmark-circle-outline" size={20} color="#E3B23C" />
                                 <View style={styles.infoContent}>
@@ -705,18 +808,16 @@ export default function Profile({ navigation }) {
 
                             <View style={styles.divider} />
 
-                            {/* Current Plan */}
                             <View style={styles.infoRow}>
                                 <Ionicons name="layers-outline" size={20} color="#E3B23C" />
                                 <View style={styles.infoContent}>
                                     <Text style={styles.infoLabel}>Current Plan</Text>
-                                    <Text style={styles.infoValue}>{user.plan.name}</Text>
+                                    <Text style={styles.infoValue}>{user?.plan?.name}</Text>
                                 </View>
                             </View>
 
                             <View style={styles.divider} />
 
-                            {/* Expires */}
                             <View style={styles.infoRow}>
                                 <Ionicons name="time-outline" size={20} color="#E3B23C" />
                                 <View style={styles.infoContent}>
@@ -729,7 +830,6 @@ export default function Profile({ navigation }) {
 
                             <View style={styles.divider} />
 
-                            {/* Days Left */}
                             <View style={styles.infoRow}>
                                 <Ionicons name="calendar-outline" size={20} color="#E3B23C" />
                                 <View style={styles.infoContent}>
@@ -743,29 +843,125 @@ export default function Profile({ navigation }) {
                                 </View>
                             </View>
                         </View>
+                       
+                        <View style={styles.buttonContainer}>
+                            {getStatusText() === 'Expiring Soon' && (
+                                <TouchableOpacity
+                                    style={styles.renewMembershipButton}
+                                    onPress={handleRenewMembership}
+                                >
+                                    <Ionicons name="checkmark-circle-outline" size={20} color="#0e9fdd" />
+                                    <Text style={styles.renewMembershipText}>Renew Membership</Text>
+                                </TouchableOpacity>
+                            )}
 
-                        {/* Cancel Membership Button */}
-                        <TouchableOpacity
-                            style={styles.cancelMembershipButton}
-                            onPress={handleCancelMembership}
-                        >
-                            <Ionicons name="close-circle-outline" size={20} color="#ff4444" />
-                            <Text style={styles.cancelMembershipText}>Cancel Membership</Text>
-                        </TouchableOpacity>
+                            <TouchableOpacity
+                                style={styles.cancelMembershipButton}
+                                onPress={handleCancelMembership}
+                            >
+                                <Ionicons name="close-circle-outline" size={20} color="#ff4444" />
+                                <Text style={styles.cancelMembershipText}>Cancel Membership</Text>
+                            </TouchableOpacity>
+                        </View>
                     </View>
-                )}
+                )} */}
+
+                <View style={styles.section}>
+                    <Text style={styles.sectionTitle}>Membership Details</Text>
+
+                    <View style={styles.infoCard}>
+
+                        {/* Safe plan fallback */}
+                        {(() => {
+                            const plan = user?.plan || null;
+                            const expiresAt = plan?.expires_at;
+                            const daysLeft = expiresAt ? getDaysLeft(expiresAt) : null;
+
+                            return (
+                                <>
+                                    {/* Status */}
+                                    <View style={styles.infoRow}>
+                                        <Ionicons name="checkmark-circle-outline" size={20} color="#E3B23C" />
+
+                                        <View style={styles.infoContent}>
+                                            <Text style={styles.infoLabel}>Status</Text>
+
+                                            <View style={styles.statusContainer}>
+                                                <View
+                                                    style={[
+                                                        styles.statusBadge,
+                                                        { backgroundColor: plan ? getStatusColor() : '#444' }
+                                                    ]}
+                                                >
+                                                    <Text style={styles.statusText}>
+                                                        {plan ? getStatusText() : 'No Membership'}
+                                                    </Text>
+                                                </View>
+                                            </View>
+                                        </View>
+                                    </View>
+
+                                    <View style={styles.divider} />
+
+                                    {/* Current Plan */}
+                                    <View style={styles.infoRow}>
+                                        <Ionicons name="layers-outline" size={20} color="#E3B23C" />
+                                        <View style={styles.infoContent}>
+                                            <Text style={styles.infoLabel}>Current Plan</Text>
+                                            <Text style={styles.infoValue}>
+                                                {plan?.name || 'No active plan'}
+                                            </Text>
+                                        </View>
+                                    </View>
+
+                                    <View style={styles.divider} />
+
+                                    {/* Expires */}
+                                    <View style={styles.infoRow}>
+                                        <Ionicons name="time-outline" size={20} color="#E3B23C" />
+                                        <View style={styles.infoContent}>
+                                            <Text style={styles.infoLabel}>Expires</Text>
+                                            <Text style={styles.infoValue}>
+                                                {expiresAt
+                                                    ? formatMemberSince(expiresAt)
+                                                    : 'Not available'}
+                                            </Text>
+                                        </View>
+                                    </View>
+
+                                    <View style={styles.divider} />
+
+                                    {/* Days Left */}
+                                    <View style={styles.infoRow}>
+                                        <Ionicons name="calendar-outline" size={20} color="#E3B23C" />
+                                        <View style={styles.infoContent}>
+                                            <Text style={styles.infoLabel}>Days Left</Text>
+
+                                            <Text
+                                                style={[
+                                                    styles.infoValue,
+                                                    {
+                                                        color:
+                                                            daysLeft !== null && daysLeft <= 7
+                                                                ? '#FFA500'
+                                                                : '#fff',
+                                                    },
+                                                ]}
+                                            >
+                                                {daysLeft !== null
+                                                    ? `${daysLeft} ${daysLeft === 1 ? 'day' : 'days'}`
+                                                    : 'No active plan'}
+                                            </Text>
+                                        </View>
+                                    </View>
+                                </>
+                            );
+                        })()}
+                    </View>
+                </View>
 
                 {/* Action Buttons */}
-                <View style={styles.section}>
-                    {/* <TouchableOpacity
-                        style={styles.actionButton}
-                        onPress={() => navigation.navigate('Settings')}
-                    >
-                        <Ionicons name="settings-outline" size={20} color="#E3B23C" />
-                        <Text style={styles.actionButtonText}>Settings</Text>
-                        <Ionicons name="chevron-forward" size={20} color="#666" />
-                    </TouchableOpacity> */}
-
+                <View style={[styles.section, { marginTop: 40, marginBottom: 12 }]}>
                     <TouchableOpacity
                         style={[styles.actionButton, styles.logoutButton]}
                         onPress={handleLogout}
@@ -943,8 +1139,8 @@ const styles = StyleSheet.create({
         marginTop: 20,
         marginBottom: 15,
         backgroundColor: '#2a2a2a',
-        borderRadius: 15,
-        padding: 20,
+        borderRadius: 8,
+        padding: 16,
     },
     profileSection: {
         flexDirection: 'row',
@@ -985,7 +1181,7 @@ const styles = StyleSheet.create({
         backgroundColor: '#E3B23C',
         paddingVertical: 8,
         paddingHorizontal: 16,
-        borderRadius: 8,
+        borderRadius: 4,
         alignSelf: 'flex-start',
     },
     changeAvatarText: {
@@ -1018,7 +1214,7 @@ const styles = StyleSheet.create({
     },
     infoCard: {
         backgroundColor: '#2a2a2a',
-        borderRadius: 12,
+        borderRadius: 8,
         paddingHorizontal: 16,
         paddingVertical: 8
     },
@@ -1089,7 +1285,7 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
         backgroundColor: '#E3B23C',
         padding: 14,
-        borderRadius: 8,
+        borderRadius: 4,
         marginVertical: 16,
     },
     saveButtonDisabled: {
@@ -1138,13 +1334,38 @@ const styles = StyleSheet.create({
         fontSize: 14,
         fontWeight: 'bold',
     },
+    // 
+    buttonContainer: {
+        flexDirection: 'column',
+        gap: 8,
+        marginTop: 12,
+    },
+    renewMembershipButton: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        flex: 1,
+        backgroundColor: '#081f2d',
+        padding: 16,
+        borderRadius: 4,
+        marginTop: 12,
+        borderWidth: 1,
+        borderColor: '#1a6d9e',
+    },
+    renewMembershipText: {
+        fontSize: 16,
+        color: '#0e9fdd',
+        marginLeft: 8,
+        fontWeight: 'bold',
+    },
     cancelMembershipButton: {
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'center',
+        flex: 1,
         backgroundColor: '#2a1a1a',
         padding: 16,
-        borderRadius: 12,
+        borderRadius: 4,
         marginTop: 12,
         borderWidth: 1,
         borderColor: '#ff4444',
@@ -1160,7 +1381,7 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         backgroundColor: '#2a2a2a',
         padding: 16,
-        borderRadius: 12,
+        borderRadius: 4,
         marginBottom: 12,
     },
     actionButtonText: {
@@ -1187,7 +1408,7 @@ const styles = StyleSheet.create({
         width: '90%',
         maxHeight: '80%',
         backgroundColor: '#2a2a2a',
-        borderRadius: 8,
+        borderRadius: 4,
         padding: 20,
     },
     modalHeader: {
@@ -1213,7 +1434,7 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         backgroundColor: '#1a1a1a',
-        borderRadius: 8,
+        borderRadius: 4,
         borderWidth: 1,
         borderColor: '#3a3a3a',
     },
@@ -1230,7 +1451,7 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         backgroundColor: '#E3B23C',
         padding: 16,
-        borderRadius: 8,
+        borderRadius: 4,
         alignItems: 'center',
         justifyContent: 'center',
         marginTop: 10,
@@ -1244,7 +1465,7 @@ const styles = StyleSheet.create({
     modalCancelButton: {
         backgroundColor: '#3a3a3a',
         padding: 16,
-        borderRadius: 8,
+        borderRadius: 4,
         alignItems: 'center',
         justifyContent: 'center',
         marginTop: 12,

@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "1039719760500",
+    "project_id": "irongainsfitnessgym",
+    "storage_bucket": "irongainsfitnessgym.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1039719760500:android:5e3b9df891637adcdac721",
+        "android_client_info": {
+          "package_name": "com.jear00.IronGainsFitnessGym"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCL_wZjcjp3J-OipBLE5x97s067OJGoKKY"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

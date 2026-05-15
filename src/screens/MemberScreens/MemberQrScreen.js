@@ -97,8 +97,41 @@ export default function MemberQRScreen({ navigation }) {
         }
     }, [countdown]);
 
+    const isWithinGymHours = () => {
+        const now = new Date();
+
+        const day = now.getDay(); 
+        // 0 = Sunday, 1 = Monday ... 6 = Saturday
+
+        const hour = now.getHours();
+        const minutes = now.getMinutes();
+
+        const timeInMinutes = hour * 60 + minutes;
+
+        // Sunday: 2:00 PM - 9:00 PM
+        if (day === 0) {
+            const open = 14 * 60; // 2:00 PM
+            const close = 21 * 60; // 9:00 PM
+            return timeInMinutes >= open && timeInMinutes <= close;
+        }
+
+        // Monday - Saturday: 8:00 AM - 10:00 PM
+        const open = 8 * 60;   // 8:00 AM
+        const close = 22 * 60; // 10:00 PM
+
+        return timeInMinutes >= open && timeInMinutes <= close;
+    };
+
     const generateQRCode = async () => {
         try {
+            // BLOCK OUTSIDE GYM HOURS
+            if (!isWithinGymHours()) {
+                setError('Gym is currently closed. Please come back during operating hours.');
+                setLoading(false);
+                setQrToken(null);
+                return;
+            }
+            
             setLoading(true);
             setError('');
 

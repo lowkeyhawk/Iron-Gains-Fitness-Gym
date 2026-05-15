@@ -25,21 +25,40 @@
       },
       "edgeToEdgeEnabled": true,
       "permissions": [
-        "CAMERA"
+        "CAMERA",
+        "android.permission.CAMERA",
+        "android.permission.RECORD_AUDIO"
       ],
-      "softwareKeyboardLayoutMode": "pan"
+      "softwareKeyboardLayoutMode": "pan",
+      "package": "com.jear00.IronGainsFitnessGym",
+      "googleServicesFile": "./google-services.json"
     },
     "web": {
       "favicon": "./assets/favicon.png"
     },
     "plugins": [
       [
-        "expo-camera",
-        {
-          "cameraPermission": "Allow $(PRODUCT_NAME) to access your camera for QR scanning"
-        }
+          "expo-camera",
+          {
+              "cameraPermission": "Allow $(PRODUCT_NAME) to access your camera for QR scanning"
+          }
       ],
-      "expo-web-browser"
-    ]
+      "expo-web-browser",
+      [
+          "expo-notifications",
+          {
+              "icon": "./assets/icon.png",
+              "color": "#E3B23C",
+              "sounds": [],
+              "androidMode": "default",
+              "androidCollapsedTitle": "IronGains Fitness"
+          }
+      ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "ded0ab28-eaf3-45be-8c24-870db73e67b0"
+      }
+    }
   }
 }

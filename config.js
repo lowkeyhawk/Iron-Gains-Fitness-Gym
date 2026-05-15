@@ -5,10 +5,12 @@
 // ============================================
 
 // Your computer's IP address
-const API_IP = '192.168.1.85'; // CHANGE THIS WHEN SWITCHING NETWORKS
+// 192.168.1.85
+// const API_IP = '192.168.1.85'; // CHANGE THIS WHEN SWITCHING NETWORKS
 
 // Base URL for your backend
-export const API_BASE_URL = `http://${API_IP}/arms-backend`;
+// export const API_BASE_URL = `http://${API_IP}/ARMS-BACKEND`;
+export const API_BASE_URL = "https://peru-kudu-818436.hostingersite.com/api";
 
 // Individual endpoints
 export const API_ENDPOINTS = {
@@ -54,11 +56,11 @@ export const API_ENDPOINTS = {
 };
 
 // Helper to get current IP (for debugging)
-export const getCurrentIP = () => API_IP;
+// export const getCurrentIP = () => API_IP;
 
 // Export for direct use
 export default {
     API_BASE_URL,
     API_ENDPOINTS,
-    getCurrentIP,
+    // getCurrentIP,
 };

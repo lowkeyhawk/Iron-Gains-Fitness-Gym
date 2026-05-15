@@ -16,8 +16,10 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { AuthContext } from '../../context/AuthContext';
 import { useFocusEffect } from '@react-navigation/native';
-import { API_ENDPOINTS } from '../../../config';
+import { API_ENDPOINTS, API_BASE_URL } from '../../../config';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+
+import * as ImagePicker from 'expo-image-picker';
 
 export default function StaffProfile({ navigation }) {
     const { user, logout, setUser } = useContext(AuthContext);
@@ -273,8 +275,83 @@ export default function StaffProfile({ navigation }) {
         return date.toLocaleDateString('en-US', options);
     };
 
-    const handleChangeAvatar = () => {
-        Alert.alert('Coming Soon', 'Avatar upload feature coming soon!');
+    const handleChangeAvatar = async () => {
+        try {
+            const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+
+            if (!permission.granted) {
+                Alert.alert('Permission required', 'Please allow access to your photos.');
+                return;
+            }
+
+            const result = await ImagePicker.launchImageLibraryAsync({
+                mediaTypes: ImagePicker.MediaTypeOptions.Images,
+                allowsEditing: true,
+                aspect: [1, 1],
+                quality: 0.7,
+            });
+
+            if (result.canceled) return;
+
+            const image = result.assets[0];
+
+            const formData = new FormData();
+            formData.append('user_id', user.id);
+            formData.append('role', user.role);
+
+            formData.append('avatar', {
+                uri: image.uri,
+                name: 'avatar.jpg',
+                type: 'image/jpeg',
+            });
+
+            const url = `${API_BASE_URL}/upload-avatar.php`;
+
+            const res = await fetch(url, {
+                method: 'POST',
+                body: formData,
+                headers: {
+                    Accept: 'application/json',
+                },
+            });
+
+            const text = await res.text(); // IMPORTANT for debugging
+
+            let data;
+            try {
+                data = JSON.parse(text);
+            } catch (e) {
+                console.error("Invalid JSON from server:", text);
+                Alert.alert('Error', 'Server returned invalid response');
+                return;
+            }
+
+            if (data.status === 'success') {
+
+                // IMPORTANT: ensure full URL
+                const newAvatarUrl = data.profile_picture.startsWith('http')
+                    ? data.profile_picture
+                    : `${API_BASE_URL}/api/uploads/${data.profile_picture}`;
+
+                const updatedUser = {
+                    ...user,
+                    profile_picture: newAvatarUrl,
+                };
+
+                setUser(updatedUser);
+                setProfileImage(newAvatarUrl);
+
+                await AsyncStorage.setItem('user', JSON.stringify(updatedUser));
+
+                Alert.alert('Success', 'Profile picture updated!');
+            } else {
+                Alert.alert('Error', data.message || 'Upload failed');
+            }
+
+        } catch (err) {
+            console.error(err);
+            Alert.alert('Error', 'Something went wrong while uploading image.');
+        }
     };
 
     const handleLogout = () => {
@@ -377,14 +454,28 @@ export default function StaffProfile({ navigation }) {
 
                         <View style={styles.profileInfo}>
                             <Text style={styles.userName}>
-                                {`${user?.first_name || ''} ${user?.middle_name || ''} ${user?.last_name || ''}`.replace(/\s+/g, ' ').trim() || 'Staff'}
+                                {`${user?.first_name || ''} ${user?.middle_name || ''} ${user?.last_name || ''}`
+                                    .replace(/\s+/g, ' ')
+                                    .trim() || 'Staff'}
                             </Text>
+
                             <TouchableOpacity
-                                style={styles.changeAvatarButton}
+                                style={[
+                                    styles.changeAvatarButton,
+                                    isSaving && { opacity: 0.6 }
+                                ]}
                                 onPress={handleChangeAvatar}
+                                disabled={isSaving}
                             >
-                                <Ionicons name="camera" size={16} color="#000" />
-                                <Text style={styles.changeAvatarText}>Change Avatar</Text>
+                                {isSaving ? (
+                                    <ActivityIndicator size="small" color="#000" />
+                                ) : (
+                                    <Ionicons name="camera" size={16} color="#000" />
+                                )}
+
+                                <Text style={styles.changeAvatarText}>
+                                    {isSaving ? 'Uploading...' : 'Change Avatar'}
+                                </Text>
                             </TouchableOpacity>
                         </View>
                     </View>
@@ -565,7 +656,7 @@ export default function StaffProfile({ navigation }) {
                 </View>
 
                 {/* Action Buttons */}
-                <View style={styles.section}>
+                 <View style={[styles.section, { marginTop: 40, marginBottom: 12 }]}>
                     {/* <TouchableOpacity
                         style={styles.actionButton}
                         onPress={() => navigation.navigate('Settings')}
@@ -749,8 +840,8 @@ const styles = StyleSheet.create({
         marginTop: 20,
         marginBottom: 30,
         backgroundColor: '#2a2a2a',
-        borderRadius: 15,
-        padding: 20,
+        borderRadius: 8,
+        padding: 16,
     },
     profileSection: {
         flexDirection: 'row',
@@ -791,7 +882,7 @@ const styles = StyleSheet.create({
         backgroundColor: '#E3B23C',
         paddingVertical: 8,
         paddingHorizontal: 16,
-        borderRadius: 8,
+        borderRadius: 4,
         alignSelf: 'flex-start',
     },
     changeAvatarText: {
@@ -824,7 +915,7 @@ const styles = StyleSheet.create({
     },
     infoCard: {
         backgroundColor: '#2a2a2a',
-        borderRadius: 12,
+        borderRadius: 8,
         paddingHorizontal: 16,
         paddingVertical: 8
     },
@@ -895,7 +986,7 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
         backgroundColor: '#E3B23C',
         padding: 14,
-        borderRadius: 8,
+        borderRadius: 4,
         marginVertical: 16,
     },
     saveButtonDisabled: {
@@ -966,7 +1057,7 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         backgroundColor: '#2a2a2a',
         padding: 16,
-        borderRadius: 12,
+        borderRadius: 4,
         marginBottom: 12,
     },
     actionButtonText: {
@@ -1019,7 +1110,7 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         backgroundColor: '#1a1a1a',
-        borderRadius: 8,
+        borderRadius: 4,
         borderWidth: 1,
         borderColor: '#3a3a3a',
     },
@@ -1036,7 +1127,7 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         backgroundColor: '#E3B23C',
         padding: 16,
-        borderRadius: 8,
+        borderRadius: 4,
         alignItems: 'center',
         justifyContent: 'center',
         marginTop: 10,
@@ -1050,7 +1141,7 @@ const styles = StyleSheet.create({
     modalCancelButton: {
         backgroundColor: '#3a3a3a',
         padding: 16,
-        borderRadius: 8,
+        borderRadius: 4,
         alignItems: 'center',
         justifyContent: 'center',
         marginTop: 12,
