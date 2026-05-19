@@ -2,35 +2,49 @@ import { useEffect } from 'react';
 import { Platform, Linking } from 'react-native';
 import * as Notifications from 'expo-notifications';
 import * as Device from 'expo-device';
-import Constants from 'expo-constants'; // 🆕
+import Constants from 'expo-constants';
 import { API_ENDPOINTS } from '../../config';
 
 Notifications.setNotificationHandler({
     handleNotification: async () => ({
-        shouldShowAlert: true,
+        shouldShowBanner: true,
+        shouldShowList: true,
         shouldPlaySound: true,
         shouldSetBadge: true,
     }),
 });
 
 export function useNotifications(userId) {
+    // Register token when userId is available
     useEffect(() => {
         if (!userId) return;
         registerPushToken(userId);
     }, [userId]);
 
-    // 🆕 Listen for notification tap
+    // Notification tap listener — runs once on mount, no userId dependency
     useEffect(() => {
-        const subscription = Notifications.addNotificationResponseReceivedListener(response => {
+        // Handle tap when app is in foreground or background
+        const tapSubscription = Notifications.addNotificationResponseReceivedListener(response => {
             const url = response.notification.request.content.data?.url;
+            console.log('Notification tapped, data:', response.notification.request.content.data);
             if (url) {
-                // Open payment link when notification is tapped
                 Linking.openURL(url);
             }
         });
 
-        return () => subscription.remove();
-    }, []);
+        // Also handle last notification response
+        // This handles the case when app was CLOSED and user taps notification
+        Notifications.getLastNotificationResponseAsync().then(response => {
+            if (!response) return;
+            const url = response.notification.request.content.data?.url;
+            console.log('Last notification response:', url);
+            if (url) {
+                Linking.openURL(url);
+            }
+        });
+
+        return () => tapSubscription.remove();
+    }, []); // ← empty dependency, runs once on mount
 }
 
 async function registerPushToken(userId) {
@@ -70,12 +84,14 @@ async function registerPushToken(userId) {
             Constants?.easConfig?.projectId;
 
         if (!projectId) {
-            console.error('❌ No projectId found. Add it to app.json under extra.eas.projectId');
+            console.error('❌ No projectId found.');
             return;
         }
 
         const tokenData = await Notifications.getExpoPushTokenAsync({ projectId });
         const token = tokenData.data;
+
+        console.log('✅ Expo Push Token:', token);
 
         await fetch(API_ENDPOINTS.REGISTER_PUSH_TOKEN, {
             method: 'POST',

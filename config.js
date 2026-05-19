@@ -10,6 +10,7 @@
 
 // Base URL for your backend
 // export const API_BASE_URL = `http://${API_IP}/ARMS-BACKEND`;
+export const BASE_URL = "https://peru-kudu-818436.hostingersite.com";
 export const API_BASE_URL = "https://peru-kudu-818436.hostingersite.com/api";
 
 // Individual endpoints
@@ -18,6 +19,7 @@ export const API_ENDPOINTS = {
     LOGIN: `${API_BASE_URL}/auth/login_unified.php`,
     SIGN_UP: `${API_BASE_URL}/auth/signup.php`,
     CHANGE_PASSWORD: `${API_BASE_URL}/auth/change_password_member.php`,
+    CHECK_EMAIL: `${API_BASE_URL}/auth/check_email.php`,
 
     // MEMBERSHIP / MEMBERS
     GET_USER_MEMBERSHIP: `${API_BASE_URL}/get_user_membership.php`,
@@ -33,7 +35,7 @@ export const API_ENDPOINTS = {
     CHANGE_PASSWORD_STAFF: `${API_BASE_URL}/admin/change_password_staff.php`,
     UPDATE_PROFILE_STAFF: `${API_BASE_URL}/pages/staff/edit_staff.php`,
 
-    // 🆕 PAYMENT
+    // PAYMENT
     // CREATE_PAYMENT_LINK: `${API_BASE_URL}/pages/payment/payment.php?action=create-link`,
     CREATE_PAYMENT_LINK: `${API_BASE_URL}/pages/payment/payment.php?action=create-checkout`,
     CHECK_PAYMENT_STATUS: `${API_BASE_URL}/pages/payment/payment.php?action=check-status`,
@@ -42,7 +44,7 @@ export const API_ENDPOINTS = {
     // SETTINGS
     GET_GYM_INFO: `${API_BASE_URL}/gym_info.php`,
     
-    // 🆕 NOTIFICATIONS
+    // NOTIFICATIONS
     REGISTER_PUSH_TOKEN: `${API_BASE_URL}/notifications/notifications.php?action=register-token`,
     GET_NOTIFICATIONS: `${API_BASE_URL}/notifications/notifications.php?action=list`,
     MARK_NOTIFICATIONS_READ: `${API_BASE_URL}/notifications/notifications.php?action=mark-read`,
@@ -53,6 +55,8 @@ export const API_ENDPOINTS = {
 
     APPROVE_VERIFICATION: `${API_BASE_URL}/pages/student/review_verification.php`,
     SUBMIT_STUDENT_VERIFICATION: `${API_BASE_URL}/pages/student/submit_student_verification.php`,
+
+    CANCEL_MEMBERSHIP: `${API_BASE_URL}/pages/membership/cancel_membership.php`,
 };
 
 // Helper to get current IP (for debugging)
@@ -62,5 +66,6 @@ export const API_ENDPOINTS = {
 export default {
     API_BASE_URL,
     API_ENDPOINTS,
+    BASE_URL
     // getCurrentIP,
 };

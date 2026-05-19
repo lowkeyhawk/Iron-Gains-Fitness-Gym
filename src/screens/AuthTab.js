@@ -23,7 +23,7 @@ export default function AuthTabs() {
             <View
                 style={[
                 styles.box,
-                    { minHeight: activeTab === 'Register' ? 880 : 400 },
+                    { minHeight: activeTab === 'Register' ? 1140 : 400 },
                     { marginBottom: 60 }
                 ]}
             >

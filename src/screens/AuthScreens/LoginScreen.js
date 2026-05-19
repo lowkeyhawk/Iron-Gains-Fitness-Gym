@@ -1,4 +1,4 @@
-import React, { useState, useContext, useRef } from 'react';
+import React, { useState, useRef, useCallback } from 'react';
 import {
     View,
     TextInput,
@@ -12,6 +12,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { AuthContext } from '../../context/AuthContext';
 import { Ionicons } from '@expo/vector-icons';
 import { API_ENDPOINTS } from '../../../config';
+import { useFocusEffect } from '@react-navigation/native';
+import { useContext } from 'react';
 
 export default function LoginScreen() {
     const { setUserToken, setHasMembership, setUser } = useContext(AuthContext);
@@ -22,9 +24,24 @@ export default function LoginScreen() {
     const [error, setError]       = useState('');
     const [showPassword, setShowPassword] = useState(false);
 
+    // 🆕 Track if submit was attempted (for red borders)
+    const [submitted, setSubmitted] = useState(false);
+
     const passwordRef = useRef(null);
 
+    // 🆕 Clear fields when tab is focused
+    useFocusEffect(
+        useCallback(() => {
+            setEmail('');
+            setPassword('');
+            setError('');
+            setSubmitted(false);
+            setShowPassword(false);
+        }, [])
+    );
+
     const handleLogin = async () => {
+        setSubmitted(true);
         setError('');
 
         if (!email.trim() || !password.trim()) {
@@ -35,10 +52,6 @@ export default function LoginScreen() {
         setLoading(true);
 
         try {
-            console.log('=== ATTEMPTING LOGIN ===');
-            console.log('Email:', email);
-            console.log('API URL:', API_ENDPOINTS.LOGIN);
-
             const response = await fetch(API_ENDPOINTS.LOGIN, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -47,35 +60,20 @@ export default function LoginScreen() {
 
             const data = await response.json();
 
-            console.log('=== LOGIN RESPONSE ===');
-            console.log('Status:', data.status);
-            console.log('User:', JSON.stringify(data.user, null, 2));
-            console.log('User Role:', data.user?.role);
-            console.log('Token:', data.token);
-            console.log('=====================');
-
             if (data.status === 'success') {
                 const token = data.token ?? 'logged-in';
 
                 await AsyncStorage.setItem('userToken', token);
                 await AsyncStorage.setItem('user', JSON.stringify(data.user));
 
-                console.log('=== SAVING TO STORAGE ===');
-                console.log('Saved user:', JSON.stringify(data.user, null, 2));
-
                 if (data.user?.role === 'staff' || data.user?.role === 'admin') {
                     await AsyncStorage.setItem('staffToken', token);
-                    console.log('✅ Staff token saved');
                 }
 
                 setUserToken(token);
                 setUser(data.user);
                 setHasMembership(!!data.user?.plan);
-
-                console.log('✅ Context updated');
-                console.log('========================');
             } else {
-                console.log('❌ Login failed:', data.message);
                 setError(data.message || 'Login failed');
             }
         } catch (err) {
@@ -86,6 +84,10 @@ export default function LoginScreen() {
         }
     };
 
+    // 🆕 Field error state — only show red after submit attempt
+    const emailMissing    = submitted && !email.trim();
+    const passwordMissing = submitted && !password.trim();
+
     return (
         <ScrollView
             contentContainerStyle={styles.container}
@@ -93,8 +95,16 @@ export default function LoginScreen() {
             showsVerticalScrollIndicator={false}
         >
             {/* Email */}
-            <View style={[styles.inputWrapper, error ? styles.inputWrapperError : null]}>
-                <Ionicons name="mail-outline" size={22} color="#6B7280" style={styles.icon} />
+            <View style={[
+                styles.inputWrapper,
+                emailMissing && styles.inputWrapperError,
+            ]}>
+                <Ionicons
+                    name="mail-outline"
+                    size={22}
+                    color={emailMissing ? '#ef4444' : '#6B7280'}
+                    style={styles.icon}
+                />
                 <TextInput
                     placeholder="Email Address"
                     placeholderTextColor="#6B7280"
@@ -108,10 +118,21 @@ export default function LoginScreen() {
                     onChangeText={text => { setEmail(text); setError(''); }}
                 />
             </View>
+            {emailMissing && (
+                <Text style={styles.fieldError}>Email is required</Text>
+            )}
 
             {/* Password */}
-            <View style={[styles.inputWrapper, error ? styles.inputWrapperError : null]}>
-                <Ionicons name="lock-closed-outline" size={22} color="#6B7280" style={styles.icon} />
+            <View style={[
+                styles.inputWrapper,
+                passwordMissing && styles.inputWrapperError,
+            ]}>
+                <Ionicons
+                    name="lock-closed-outline"
+                    size={22}
+                    color={passwordMissing ? '#ef4444' : '#6B7280'}
+                    style={styles.icon}
+                />
                 <TextInput
                     ref={passwordRef}
                     placeholder="Password"
@@ -135,9 +156,12 @@ export default function LoginScreen() {
                     />
                 </TouchableOpacity>
             </View>
+            {passwordMissing && (
+                <Text style={styles.fieldError}>Password is required</Text>
+            )}
 
-            {/* Error message */}
-            {error ? (
+            {/* General error */}
+            {error && !emailMissing && !passwordMissing ? (
                 <View style={styles.errorContainer}>
                     <Ionicons name="alert-circle-outline" size={16} color="#ef4444" />
                     <Text style={styles.errorText}>{error}</Text>
@@ -156,9 +180,6 @@ export default function LoginScreen() {
                     : <Text style={styles.buttonText}>Sign In →</Text>
                 }
             </TouchableOpacity>
-
-            {/* Forgot Password */}
-            {/* <Text style={styles.forgot}>Forgot your password?</Text> */}
         </ScrollView>
     );
 }
@@ -182,9 +203,7 @@ const styles = StyleSheet.create({
     inputWrapperError: {
         borderBottomColor: '#ef4444',
     },
-    icon: {
-        marginRight: 10,
-    },
+    icon: { marginRight: 10 },
     input: {
         flex: 1,
         paddingVertical: 16,
@@ -192,14 +211,20 @@ const styles = StyleSheet.create({
         fontSize: 16,
         minHeight: 56,
     },
-    eyeIcon: {
-        padding: 8,
+    eyeIcon: { padding: 8 },
+    fieldError: {
+        color: '#ef4444',
+        fontSize: 12,
+        marginLeft: 4,
+        marginBottom: 12,
+        marginTop: 2,
     },
     errorContainer: {
         flexDirection: 'row',
         alignItems: 'center',
         gap: 6,
         marginBottom: 12,
+        marginTop: 8,
         paddingHorizontal: 4,
     },
     errorText: {
@@ -216,18 +241,11 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
         minHeight: 54,
     },
-    buttonDisabled: {
-        opacity: 0.7,
-    },
+    buttonDisabled: { opacity: 0.7 },
     buttonText: {
         color: '#000',
         textAlign: 'center',
         fontSize: 16,
-        fontFamily: 'Inter-Bold',
-    },
-    forgot: {
-        color: '#E3B23C',
-        textAlign: 'center',
-        marginTop: 32,
+        fontWeight: 'bold',
     },
 });

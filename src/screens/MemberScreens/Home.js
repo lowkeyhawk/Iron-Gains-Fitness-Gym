@@ -10,6 +10,7 @@ import {
     Dimensions,
     Linking,
     ActivityIndicator,
+    AppState,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -19,7 +20,7 @@ import { AuthContext } from '../../context/AuthContext';
 import NotificationBell from '../../components/NotificationBell';
 import { useNotifications } from '../../hooks/useNotifications';
 import { useInAppNotifications } from '../../hooks/useInAppNotifications';
-import { API_ENDPOINTS } from '../../../config';
+import { API_ENDPOINTS, BASE_URL } from '../../../config';
 import Svg, { Path } from "react-native-svg";
 import { useNavigation } from '@react-navigation/native';
 
@@ -37,6 +38,7 @@ export default function Home() {
     const [loading, setLoading] = useState(true);
     const [verificationBannerDismissed, setVerificationBannerDismissed] = useState(false);
     const scrollViewRef = useRef(null);
+    const appState = useRef(AppState.currentState);
 
     const navigation = useNavigation();
 
@@ -49,7 +51,7 @@ export default function Home() {
         </Svg>
     );
 
-    // ✅ Load dismissed state from AsyncStorage
+    // Load dismissed state from AsyncStorage
     useEffect(() => {
         const loadBannerState = async () => {
             try {
@@ -65,7 +67,6 @@ export default function Home() {
         if (user?.id) loadBannerState();
     }, [user?.id]);
 
-    // ✅ Persist dismissed state forever
     const handleDismissBanner = async () => {
         try {
             const key = `verification_banner_dismissed_${user?.id}`;
@@ -76,7 +77,7 @@ export default function Home() {
         }
     };
 
-    // Load user from AsyncStorage
+    // Load user from AsyncStorage + fetch fresh data
     const loadUser = useCallback(async () => {
         try {
             const userData = await AsyncStorage.getItem('user');
@@ -87,6 +88,7 @@ export default function Home() {
                     setUserImage(parsed.profile_picture);
                 }
 
+                // Fetch fresh verification_status
                 try {
                     const membersRes = await fetch(
                         `${API_ENDPOINTS.GET_MEMBERS}?search=${parsed.email}&limit=1`
@@ -95,14 +97,41 @@ export default function Home() {
 
                     if (membersData.status === 'success' && membersData.data?.length > 0) {
                         const freshData = membersData.data[0];
+
+                        // Also fetch latest membership plan
+                        let updatedPlan = parsed.plan;
+                        try {
+                            const planRes = await fetch(API_ENDPOINTS.GET_USER_MEMBERSHIP, {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ user_id: parsed.id }),
+                            });
+                            const planData = await planRes.json();
+                            if (planData.status === 'success' && planData.plan) {
+                                updatedPlan = {
+                                    ...planData.plan,
+                                    expires_at: planData.plan.expires_at || planData.plan.end_date,
+                                    end_date:   planData.plan.end_date   || planData.plan.expires_at,
+                                };
+                            }
+                        } catch (planErr) {
+                            console.error('Failed to fetch plan:', planErr);
+                        }
+
+                        
                         const freshUser = {
                             ...parsed,
                             verification_status: freshData.verification_status,
                             memberType: freshData.member_type,
-                        };
-                        // Update AsyncStorage
+                            plan: updatedPlan,
+                            profile_picture: freshData.profile_picture
+                                ? freshData.profile_picture.startsWith('http')
+                                    ? freshData.profile_picture
+                                    : `${BASE_URL}/${freshData.profile_picture}`
+                                : parsed.profile_picture,
+                        };                       
+
                         await AsyncStorage.setItem('user', JSON.stringify(freshUser));
-                        // Update context so banner reflects latest status
                         setUser(freshUser);
                     }
                 } catch (err) {
@@ -177,6 +206,21 @@ export default function Home() {
         };
         loadData();
     }, [loadUser, fetchGymData]);
+
+    // AppState listener — refresh when app comes back to foreground after payment
+    useEffect(() => {
+        const subscription = AppState.addEventListener('change', async nextAppState => {
+            if (
+                appState.current.match(/inactive|background/) &&
+                nextAppState === 'active'
+            ) {
+                await loadUser();
+                await refetch();
+            }
+            appState.current = nextAppState;
+        });
+        return () => subscription.remove();
+    }, [loadUser, refetch]);
 
     // Refetch on screen focus
     useFocusEffect(
@@ -315,9 +359,7 @@ export default function Home() {
                     />
                 }
             >
-                
-
-                {/* ✅ Verification Status Banner */}
+                {/* Verification Status Banner */}
                 {user?.memberType === 'student' && !verificationBannerDismissed && (
                     <View style={[
                         styles.verificationBanner,
@@ -348,7 +390,6 @@ export default function Home() {
                             </View>
                         </View>
 
-                        {/* ✅ Close only shown when approved, persists forever via AsyncStorage */}
                         {user?.verification_status === 'approved' && (
                             <TouchableOpacity
                                 onPress={handleDismissBanner}
@@ -403,12 +444,14 @@ export default function Home() {
                 </View>
 
                 {/* Action Buttons */}
-                <View style={styles.actionButtons}>
-                    <TouchableOpacity style={styles.qrButton} onPress={handleQRPress}>
-                        <MaterialIcons name="qr-code-2" size={28} color="#191919" />
-                        <Text style={styles.qrButtonText}>Show QR</Text>
-                    </TouchableOpacity>
-                </View>
+                { user?.plan && (
+                    <View style={styles.actionButtons}>
+                        <TouchableOpacity style={styles.qrButton} onPress={handleQRPress}>
+                            <MaterialIcons name="qr-code-2" size={28} color="#191919" />
+                            <Text style={styles.qrButtonText}>Show QR</Text>
+                        </TouchableOpacity>
+                    </View>
+                )}
 
                 {/* Your Gym Section */}
                 {gymData && (
@@ -519,7 +562,7 @@ const styles = StyleSheet.create({
     },
     membershipCard: {
         backgroundColor: '#262626',
-        borderRadius: 16,
+        borderRadius: 8,
         padding: 20,
         marginBottom: 16,
         borderWidth: 1,
@@ -612,12 +655,11 @@ const styles = StyleSheet.create({
         fontWeight: '600',
         color: '#fff',
     },
-
     verificationBanner: {
         flexDirection: 'row',
-        alignItems: 'start',
+        alignItems: 'flex-start',
         justifyContent: 'space-between',
-        borderRadius: 12,
+        borderRadius: 8,
         padding: 14,
         marginBottom: 16,
         borderWidth: 1,
@@ -646,7 +688,6 @@ const styles = StyleSheet.create({
         color: '#9ca3af',
         lineHeight: 18,
     },
-
     actionButtons: {
         flexDirection: 'row',
         gap: 12,
@@ -654,7 +695,7 @@ const styles = StyleSheet.create({
     qrButton: {
         flex: 1,
         backgroundColor: '#D4AF37',
-        borderRadius: 12,
+        borderRadius: 8,
         paddingVertical: 12,
         justifyContent: 'center',
         alignItems: 'center',
@@ -703,11 +744,11 @@ const styles = StyleSheet.create({
     photoImage: {
         width: '100%',
         height: '100%',
-        borderRadius: 16,
+        borderRadius: 8,
     },
     detailsBox: {
         backgroundColor: '#262626',
-        borderRadius: 12,
+        borderRadius: 8,
         padding: 16,
         borderWidth: 1,
         borderColor: '#333',

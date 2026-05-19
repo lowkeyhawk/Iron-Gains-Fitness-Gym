@@ -444,7 +444,7 @@ const styles = StyleSheet.create({
     qrWrapper: {
         backgroundColor: 'white',
         padding: 20,
-        borderRadius: 15,
+        borderRadius: 8,
         shadowColor: '#E3B23C',
         shadowOffset: { width: 0, height: 0 },
         shadowOpacity: 0.3,
@@ -465,7 +465,7 @@ const styles = StyleSheet.create({
         right: 0,
         bottom: 0,
         backgroundColor: 'rgba(0, 0, 0, 0.7)',
-        borderRadius: 15,
+        borderRadius: 8,
         justifyContent: 'center',
         alignItems: 'center',
     },
@@ -504,7 +504,7 @@ const styles = StyleSheet.create({
     instructions: {
         backgroundColor: '#2a2a2a',
         padding: 20,
-        borderRadius: 10,
+        borderRadius: 8,
         marginBottom: 20,
     },
     instructionsTitle: {
@@ -534,7 +534,7 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         backgroundColor: '#E3B23C',
         paddingVertical: 15,
-        borderRadius: 10,
+        borderRadius: 8,
         alignItems: 'center',
         justifyContent: 'center',
         marginBottom: 30,
