@@ -408,7 +408,7 @@ export default function Profile({ navigation }) {
             const res = await fetch(`${API_BASE_URL}/upload-avatar.php`, {
                 method: 'POST',
                 body: formData,
-                headers: { Accept: 'application/json' },
+                // headers: { Accept: 'application/json' },
             });
             const text = await res.text();
             let data;

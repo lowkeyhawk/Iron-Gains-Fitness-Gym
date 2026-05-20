@@ -45,8 +45,13 @@ export default function RootNavigator() {
     const isStudentUnverified =
         user?.role === 'member' &&
         user?.memberType === 'student' &&
-        Number(user?.isVerified) === 0 &&
-        !user?.plan;
+        !user?.plan &&
+        (
+            user?.verification_status === 'none' || 
+            user?.verification_status === null ||
+            user?.verification_status === '0' ||
+            Number(user?.verification_status) === 0
+        );
 
     return (
         <Stack.Navigator screenOptions={{ headerShown: false }}>
