@@ -44,22 +44,16 @@ export default function Home() {
 
     const CrownIcon = ({ size = 16, color = "#D4AF37" }) => (
         <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
-            <Path
-                d="M3 7l4 5 5-7 5 7 4-5 1 13H2L3 7z"
-                fill={color}
-            />
+            <Path d="M3 7l4 5 5-7 5 7 4-5 1 13H2L3 7z" fill={color} />
         </Svg>
     );
 
-    // Load dismissed state from AsyncStorage
     useEffect(() => {
         const loadBannerState = async () => {
             try {
                 const key = `verification_banner_dismissed_${user?.id}`;
                 const dismissed = await AsyncStorage.getItem(key);
-                if (dismissed === 'true') {
-                    setVerificationBannerDismissed(true);
-                }
+                if (dismissed === 'true') setVerificationBannerDismissed(true);
             } catch (err) {
                 console.error(err);
             }
@@ -77,18 +71,21 @@ export default function Home() {
         }
     };
 
-    // Load user from AsyncStorage + fetch fresh data
+    // 🆕 Handle re-upload — resets status to 'none' so RootNavigator redirects to VerificationStack
+    const handleReUpload = async () => {
+        const updatedUser = { ...user, verification_status: 'none' };
+        setUser(updatedUser);
+        await AsyncStorage.setItem('user', JSON.stringify(updatedUser));
+    };
+
     const loadUser = useCallback(async () => {
         try {
             const userData = await AsyncStorage.getItem('user');
             if (userData) {
                 const parsed = JSON.parse(userData);
                 setUserId(parsed.id);
-                if (parsed.profile_picture) {
-                    setUserImage(parsed.profile_picture);
-                }
+                if (parsed.profile_picture) setUserImage(parsed.profile_picture);
 
-                // Fetch fresh verification_status
                 try {
                     const membersRes = await fetch(
                         `${API_ENDPOINTS.GET_MEMBERS}?search=${parsed.email}&limit=1`
@@ -98,7 +95,6 @@ export default function Home() {
                     if (membersData.status === 'success' && membersData.data?.length > 0) {
                         const freshData = membersData.data[0];
 
-                        // Also fetch latest membership plan
                         let updatedPlan = parsed.plan;
                         try {
                             const planRes = await fetch(API_ENDPOINTS.GET_USER_MEMBERSHIP, {
@@ -118,10 +114,11 @@ export default function Home() {
                             console.error('Failed to fetch plan:', planErr);
                         }
 
-                        
                         const freshUser = {
                             ...parsed,
-                            verification_status: freshData.verification_status,
+                            verification_status: parsed.verification_status === 'none' 
+                                ? 'none' 
+                                : freshData.verification_status,
                             memberType: freshData.member_type,
                             plan: updatedPlan,
                             profile_picture: freshData.profile_picture
@@ -129,7 +126,7 @@ export default function Home() {
                                     ? freshData.profile_picture
                                     : `${BASE_URL}/${freshData.profile_picture}`
                                 : parsed.profile_picture,
-                        };                       
+                        };
 
                         await AsyncStorage.setItem('user', JSON.stringify(freshUser));
                         setUser(freshUser);
@@ -143,7 +140,6 @@ export default function Home() {
         }
     }, []);
 
-    // Local slider images
     const sliderImages = [
         { id: '1', source: require('../../../assets/slider-images/1.jpg') },
         { id: '2', source: require('../../../assets/slider-images/2.jpg') },
@@ -152,34 +148,20 @@ export default function Home() {
         { id: '5', source: require('../../../assets/slider-images/5.jpg') },
     ];
 
-    useEffect(() => {
-        sliderImages.forEach((img) => {
-            console.log(`Image ${img.id} source:`, img.source);
-        });
-    }, []);
-
-    // Fetch gym data
     const fetchGymData = useCallback(async () => {
         try {
             const gymInfoUrl = `${API_ENDPOINTS.GET_GYM_INFO}`;
             const response = await fetch(gymInfoUrl);
             const responseText = await response.text();
-
-            if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`);
-            }
-
+            if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
             const result = JSON.parse(responseText);
-
             if (result.status === 'success' && result.data) {
                 setGymData({
                     ...result.data,
                     photos: sliderImages,
                     hours: ['Mon - Sat - (8:00 AM – 10:00 PM)', 'Sun - (2:00 PM - 9:00 PM)'],
                 });
-            } else {
-                throw new Error(result.message || 'No data returned');
-            }
+            } else throw new Error(result.message || 'No data returned');
         } catch (error) {
             setGymData({
                 name: 'Iron Gains Fitness Gym',
@@ -192,11 +174,9 @@ export default function Home() {
         }
     }, []);
 
-    // Setup notifications
     useNotifications(userId);
     const { notifications, unreadCount, markAllRead, markOneRead, refetch } = useInAppNotifications(userId);
 
-    // Initial load
     useEffect(() => {
         const loadData = async () => {
             setLoading(true);
@@ -207,13 +187,9 @@ export default function Home() {
         loadData();
     }, [loadUser, fetchGymData]);
 
-    // AppState listener — refresh when app comes back to foreground after payment
     useEffect(() => {
         const subscription = AppState.addEventListener('change', async nextAppState => {
-            if (
-                appState.current.match(/inactive|background/) &&
-                nextAppState === 'active'
-            ) {
+            if (appState.current.match(/inactive|background/) && nextAppState === 'active') {
                 await loadUser();
                 await refetch();
             }
@@ -222,21 +198,12 @@ export default function Home() {
         return () => subscription.remove();
     }, [loadUser, refetch]);
 
-    // Refetch on screen focus
-    useFocusEffect(
-        useCallback(() => {
-            onRefresh();
-        }, [])
-    );
+    useFocusEffect(useCallback(() => { onRefresh(); }, []));
 
     const onRefresh = useCallback(async () => {
         setRefreshing(true);
         try {
-            await Promise.all([
-                loadUser(),
-                fetchGymData(),
-                refetch(),
-            ]);
+            await Promise.all([loadUser(), fetchGymData(), refetch()]);
         } catch (error) {
             console.error('Refresh error:', error);
         } finally {
@@ -294,9 +261,7 @@ export default function Home() {
         return 'Active';
     };
 
-    const handleQRPress = () => {
-        navigation.navigate('QRCode');
-    };
+    const handleQRPress = () => navigation.navigate('QRCode');
 
     const handleCallGym = () => {
         if (gymData?.phone_number) {
@@ -327,6 +292,9 @@ export default function Home() {
             </SafeAreaView>
         );
     }
+
+    const isStudent = user?.memberType === 'student';
+    const verificationStatus = user?.verification_status;
 
     return (
         <View style={styles.container}>
@@ -359,45 +327,68 @@ export default function Home() {
                     />
                 }
             >
-                {/* Verification Status Banner */}
-                {user?.memberType === 'student' && !verificationBannerDismissed && (
-                    <View style={[
-                        styles.verificationBanner,
-                        user?.verification_status === 'approved'
-                            ? styles.verificationApproved
-                            : styles.verificationPending
-                    ]}>
+                {/* ── Pending Banner ───────────────────────── */}
+                {isStudent && verificationStatus === 'pending' && !verificationBannerDismissed && (
+                    <View style={[styles.verificationBanner, styles.verificationPending]}>
                         <View style={styles.verificationBannerLeft}>
-                            <Ionicons
-                                name={user?.verification_status === 'approved' ? 'checkmark-circle' : 'time-outline'}
-                                size={20}
-                                color={user?.verification_status === 'approved' ? '#22c55e' : '#E3B23C'}
-                            />
+                            <Ionicons name="time-outline" size={20} color="#E3B23C" />
                             <View style={{ flex: 1 }}>
-                                <Text style={[
-                                    styles.verificationBannerTitle,
-                                    { color: user?.verification_status === 'approved' ? '#22c55e' : '#E3B23C' }
-                                ]}>
-                                    {user?.verification_status === 'approved'
-                                        ? 'Account Verified!'
-                                        : 'Pending Verification'}
+                                <Text style={[styles.verificationBannerTitle, { color: '#E3B23C' }]}>
+                                    Pending Verification
                                 </Text>
                                 <Text style={styles.verificationBannerText}>
-                                    {user?.verification_status === 'approved'
-                                        ? 'Your student account has been approved. You can now avail student plans.'
-                                        : "Your student ID is being reviewed. You'll be notified once approved."}
+                                    Your student ID is being reviewed. You'll be notified once approved.
                                 </Text>
                             </View>
                         </View>
+                    </View>
+                )}
 
-                        {user?.verification_status === 'approved' && (
-                            <TouchableOpacity
-                                onPress={handleDismissBanner}
-                                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-                            >
-                                <Ionicons name="close" size={20} color="#22c55e" />
-                            </TouchableOpacity>
-                        )}
+                {/* ── Approved Banner ──────────────────────── */}
+                {isStudent && verificationStatus === 'approved' && !verificationBannerDismissed && (
+                    <View style={[styles.verificationBanner, styles.verificationApproved]}>
+                        <View style={styles.verificationBannerLeft}>
+                            <Ionicons name="checkmark-circle" size={20} color="#22c55e" />
+                            <View style={{ flex: 1 }}>
+                                <Text style={[styles.verificationBannerTitle, { color: '#22c55e' }]}>
+                                    Account Verified!
+                                </Text>
+                                <Text style={styles.verificationBannerText}>
+                                    Your student account has been approved. You can now avail student plans.
+                                </Text>
+                            </View>
+                        </View>
+                        <TouchableOpacity
+                            onPress={handleDismissBanner}
+                            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                        >
+                            <Ionicons name="close" size={20} color="#22c55e" />
+                        </TouchableOpacity>
+                    </View>
+                )}
+
+                {/* 🆕 Rejected Banner */}
+                {isStudent && verificationStatus === 'rejected' && (
+                    <View style={[styles.verificationBanner, styles.verificationRejected]}>
+                        <View style={styles.verificationBannerLeft}>
+                            <Ionicons name="close-circle" size={20} color="#ef4444" />
+                            <View style={{ flex: 1 }}>
+                                <Text style={[styles.verificationBannerTitle, { color: '#ef4444' }]}>
+                                    Verification Rejected
+                                </Text>
+                                <Text style={styles.verificationBannerText}>
+                                    Your student ID verification was rejected. Please resubmit with clearer photos.
+                                </Text>
+                                {/* 🆕 Re-upload button */}
+                                <TouchableOpacity
+                                    style={styles.reUploadButton}
+                                    onPress={handleReUpload}
+                                >
+                                    <Ionicons name="cloud-upload-outline" size={14} color="#000" />
+                                    <Text style={styles.reUploadButtonText}>Re-upload Documents</Text>
+                                </TouchableOpacity>
+                            </View>
+                        </View>
                     </View>
                 )}
 
@@ -430,9 +421,7 @@ export default function Home() {
                     <View style={styles.detailsRow}>
                         <View style={styles.detailItem}>
                             <Text style={styles.detailLabel}>MEMBER SINCE</Text>
-                            <Text style={styles.detailValue}>
-                                {formatMemberSince(user?.created_at)}
-                            </Text>
+                            <Text style={styles.detailValue}>{formatMemberSince(user?.created_at)}</Text>
                         </View>
                         <View style={styles.detailItem}>
                             <Text style={styles.detailLabel}>NEXT PAYMENT</Text>
@@ -444,7 +433,7 @@ export default function Home() {
                 </View>
 
                 {/* Action Buttons */}
-                { user?.plan && (
+                {user?.plan && (
                     <View style={styles.actionButtons}>
                         <TouchableOpacity style={styles.qrButton} onPress={handleQRPress}>
                             <MaterialIcons name="qr-code-2" size={28} color="#191919" />
@@ -518,270 +507,59 @@ export default function Home() {
 }
 
 const styles = StyleSheet.create({
-    container: {
-        flex: 1,
-        backgroundColor: '#191919',
-    },
-    loadingContainer: {
-        flex: 1,
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    loadingText: {
-        color: '#fff',
-        marginTop: 12,
-        fontSize: 16,
-    },
-    header: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        paddingHorizontal: 16,
-        paddingVertical: 16,
-        marginBottom: 8,
-    },
-    dateText: {
-        fontSize: 14,
-        color: '#9ca3af',
-        fontWeight: '500',
-        marginBottom: 8,
-    },
-    greetingText: {
-        fontSize: 24,
-        fontWeight: '700',
-        color: '#fff',
-    },
-    headerRight: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 12,
-    },
-    scrollContent: {
-        paddingHorizontal: 16,
-        paddingTop: 8,
-    },
-    membershipCard: {
-        backgroundColor: '#262626',
-        borderRadius: 8,
-        padding: 20,
-        marginBottom: 16,
-        borderWidth: 1,
-        borderColor: '#333',
-    },
-    cardHeader: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        marginBottom: 16,
-    },
-    gymNameSection: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 8,
-        flex: 1,
-    },
-    gymIcon: {
-        width: 35,
-        height: 35,
-        borderRadius: 99,
-        backgroundColor: '#D4AF37',
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    gymName: {
-        fontSize: 16,
-        fontWeight: '700',
-        color: '#fff',
-        flex: 1,
-    },
-    activeBadge: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 6,
-        paddingHorizontal: 10,
-        paddingVertical: 6,
-        borderRadius: 20,
-        borderWidth: 1,
-        borderColor: '#D4AF37',
-    },
-    activeDot: {
-        width: 6,
-        height: 6,
-        borderRadius: 3,
-        backgroundColor: '#D4AF37',
-    },
-    activeText: {
-        fontSize: 11,
-        fontWeight: '700',
-        color: '#D4AF37',
-    },
-    divider: {
-        height: 1,
-        backgroundColor: '#404040',
-        marginVertical: 16,
-    },
-    membershipInfo: {
-        marginBottom: 28,
-    },
-    membershipType: {
-        fontSize: 12,
-        color: '#D4AF37',
-        fontWeight: '600',
-        marginBottom: 6,
-        letterSpacing: 0.5,
-        textTransform: 'uppercase',
-    },
-    memberName: {
-        fontSize: 30,
-        fontWeight: '700',
-        color: '#fff',
-    },
-    detailsRow: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-    },
-    detailItem: {
-        flex: 1,
-    },
-    detailLabel: {
-        fontSize: 10,
-        color: '#9ca3af',
-        fontWeight: '600',
-        marginBottom: 4,
-        letterSpacing: 0.5,
-    },
-    detailValue: {
-        fontSize: 14,
-        fontWeight: '600',
-        color: '#fff',
-    },
-    verificationBanner: {
-        flexDirection: 'row',
-        alignItems: 'flex-start',
-        justifyContent: 'space-between',
-        borderRadius: 8,
-        padding: 14,
-        marginBottom: 16,
-        borderWidth: 1,
-    },
-    verificationPending: {
-        backgroundColor: '#1a1400',
-        borderColor: '#E3B23C44',
-    },
-    verificationApproved: {
-        backgroundColor: '#052e16',
-        borderColor: '#22c55e44',
-    },
-    verificationBannerLeft: {
-        flexDirection: 'row',
-        alignItems: 'flex-start',
-        gap: 10,
-        flex: 1,
-    },
-    verificationBannerTitle: {
-        fontSize: 14,
-        fontWeight: '700',
-        marginBottom: 2,
-    },
-    verificationBannerText: {
-        fontSize: 12,
-        color: '#9ca3af',
-        lineHeight: 18,
-    },
-    actionButtons: {
-        flexDirection: 'row',
-        gap: 12,
-    },
-    qrButton: {
-        flex: 1,
-        backgroundColor: '#D4AF37',
-        borderRadius: 8,
-        paddingVertical: 12,
-        justifyContent: 'center',
-        alignItems: 'center',
-        gap: 4,
-    },
-    qrButtonText: {
-        color: '#191919',
-        fontSize: 14,
-        fontWeight: '700',
-    },
-    gymSection: {
-        marginBottom: 16,
-    },
-    sectionTitle: {
-        fontSize: 16,
-        color: '#9ca3af',
-        fontWeight: '600',
-        marginBottom: 8,
-        marginTop: 32,
-        letterSpacing: 0.5,
-    },
-    gymNameBig: {
-        fontSize: 20,
-        fontWeight: '700',
-        color: '#fff',
-        marginBottom: 2,
-    },
-    gymLocationText: {
-        fontSize: 14,
-        color: '#9ca3af',
-        fontWeight: '500',
-    },
-    photosScroll: {
-        marginHorizontal: -16,
-        marginBottom: 16,
-    },
-    photosContent: {
-        paddingHorizontal: 16,
-        gap: 4,
-    },
-    photoItem: {
-        width: ITEM_WIDTH,
-        aspectRatio: 16 / 9,
-        marginRight: SPACING,
-    },
-    photoImage: {
-        width: '100%',
-        height: '100%',
-        borderRadius: 8,
-    },
-    detailsBox: {
-        backgroundColor: '#262626',
-        borderRadius: 8,
-        padding: 16,
-        borderWidth: 1,
-        borderColor: '#333',
-    },
-    detailRowBox: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 12,
-        marginBottom: 16,
-    },
-    detailRowText: {
-        fontSize: 14,
-        color: '#fff',
-        fontWeight: '500',
-        flex: 1,
-    },
-    amenitiesContainer: {
-        flexDirection: 'row',
-        flexWrap: 'wrap',
-        gap: 8,
-        marginTop: 8,
-    },
-    amenityTag: {
-        paddingHorizontal: 12,
-        paddingVertical: 6,
-        backgroundColor: '#333',
-        borderRadius: 20,
-        borderWidth: 1,
-        borderColor: '#404040',
-    },
-    amenityText: {
-        fontSize: 12,
-        color: '#9ca3af',
-        fontWeight: '500',
-    },
+    container: { flex: 1, backgroundColor: '#191919' },
+    loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+    loadingText: { color: '#fff', marginTop: 12, fontSize: 16 },
+    header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 16, marginBottom: 8 },
+    dateText: { fontSize: 14, color: '#9ca3af', fontWeight: '500', marginBottom: 8 },
+    greetingText: { fontSize: 24, fontWeight: '700', color: '#fff' },
+    headerRight: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+    scrollContent: { paddingHorizontal: 16, paddingTop: 8 },
+    membershipCard: { backgroundColor: '#262626', borderRadius: 8, padding: 20, marginBottom: 16, borderWidth: 1, borderColor: '#333' },
+    cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
+    gymNameSection: { flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1 },
+    gymIcon: { width: 35, height: 35, borderRadius: 99, backgroundColor: '#D4AF37', justifyContent: 'center', alignItems: 'center' },
+    gymName: { fontSize: 16, fontWeight: '700', color: '#fff', flex: 1 },
+    activeBadge: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 20, borderWidth: 1, borderColor: '#D4AF37' },
+    activeDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: '#D4AF37' },
+    activeText: { fontSize: 11, fontWeight: '700', color: '#D4AF37' },
+    divider: { height: 1, backgroundColor: '#404040', marginVertical: 16 },
+    membershipInfo: { marginBottom: 28 },
+    membershipType: { fontSize: 12, color: '#D4AF37', fontWeight: '600', marginBottom: 6, letterSpacing: 0.5, textTransform: 'uppercase' },
+    memberName: { fontSize: 30, fontWeight: '700', color: '#fff' },
+    detailsRow: { flexDirection: 'row', justifyContent: 'space-between' },
+    detailItem: { flex: 1 },
+    detailLabel: { fontSize: 10, color: '#9ca3af', fontWeight: '600', marginBottom: 4, letterSpacing: 0.5 },
+    detailValue: { fontSize: 14, fontWeight: '600', color: '#fff' },
+
+    // Verification Banners
+    verificationBanner: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', borderRadius: 8, padding: 14, marginBottom: 16, borderWidth: 1 },
+    verificationPending:  { backgroundColor: '#1a1400', borderColor: '#E3B23C44' },
+    verificationApproved: { backgroundColor: '#052e16', borderColor: '#22c55e44' },
+    verificationRejected: { backgroundColor: '#2a0a0a', borderColor: '#ef444444' }, // 🆕
+    verificationBannerLeft: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, flex: 1 },
+    verificationBannerTitle: { fontSize: 14, fontWeight: '700', marginBottom: 2 },
+    verificationBannerText: { fontSize: 12, color: '#9ca3af', lineHeight: 18 },
+
+    // 🆕 Re-upload button
+    reUploadButton: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#E3B23C', paddingVertical: 8, paddingHorizontal: 14, borderRadius: 6, marginTop: 10, alignSelf: 'flex-start', gap: 6 },
+    reUploadButtonText: { color: '#000', fontSize: 12, fontWeight: 'bold' },
+
+    actionButtons: { flexDirection: 'row', gap: 12 },
+    qrButton: { flex: 1, backgroundColor: '#D4AF37', borderRadius: 8, paddingVertical: 12, justifyContent: 'center', alignItems: 'center', gap: 4 },
+    qrButtonText: { color: '#191919', fontSize: 14, fontWeight: '700' },
+    gymSection: { marginBottom: 16 },
+    sectionTitle: { fontSize: 16, color: '#9ca3af', fontWeight: '600', marginBottom: 8, marginTop: 32, letterSpacing: 0.5 },
+    gymNameBig: { fontSize: 20, fontWeight: '700', color: '#fff', marginBottom: 2 },
+    gymLocationText: { fontSize: 14, color: '#9ca3af', fontWeight: '500' },
+    photosScroll: { marginHorizontal: -16, marginBottom: 16 },
+    photosContent: { paddingHorizontal: 16, gap: 4 },
+    photoItem: { width: ITEM_WIDTH, aspectRatio: 16 / 9, marginRight: SPACING },
+    photoImage: { width: '100%', height: '100%', borderRadius: 8 },
+    detailsBox: { backgroundColor: '#262626', borderRadius: 8, padding: 16, borderWidth: 1, borderColor: '#333' },
+    detailRowBox: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 16 },
+    detailRowText: { fontSize: 14, color: '#fff', fontWeight: '500', flex: 1 },
+    amenitiesContainer: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 8 },
+    amenityTag: { paddingHorizontal: 12, paddingVertical: 6, backgroundColor: '#333', borderRadius: 20, borderWidth: 1, borderColor: '#404040' },
+    amenityText: { fontSize: 12, color: '#9ca3af', fontWeight: '500' },
 });

@@ -116,7 +116,7 @@ export default function MemberQRScreen({ navigation }) {
         }
 
         // Monday - Saturday: 8:00 AM - 10:00 PM
-        const open = 8 * 60;   // 8:00 AM
+        const open = 6 * 60;   // 6:00 AM set to 6 temporarily
         const close = 22 * 60; // 10:00 PM
 
         return timeInMinutes >= open && timeInMinutes <= close;
