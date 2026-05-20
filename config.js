@@ -57,6 +57,7 @@ export const API_ENDPOINTS = {
     SUBMIT_STUDENT_VERIFICATION: `${API_BASE_URL}/pages/student/submit_student_verification.php`,
 
     CANCEL_MEMBERSHIP: `${API_BASE_URL}/pages/membership/cancel_membership.php`,
+    GET_STAFF_DETAILS: `${API_BASE_URL}/pages/staff/get_staff_details.php`,
 };
 
 // Helper to get current IP (for debugging)

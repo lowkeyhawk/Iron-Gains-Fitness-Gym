@@ -9,6 +9,7 @@ import { AuthContext } from '../../context/AuthContext';
 import { Ionicons } from '@expo/vector-icons';
 import { API_ENDPOINTS } from '../../../config';
 import { useFocusEffect } from '@react-navigation/native';
+import { registerPushToken } from '../../hooks/useNotifications'; // 🆕
 
 // ─── Validation helpers ───────────────────────────────────────────────────────
 const isValidEmail = (email) =>
@@ -22,7 +23,6 @@ const passwordRules = [
 
 const isPasswordValid = (p) => passwordRules.every((r) => r.test(p));
 
-// ─── Section header ───────────────────────────────────────────────────────────
 function SectionHeader({ title }) {
     return (
         <View style={styles.sectionHeader}>
@@ -51,7 +51,6 @@ export default function SignUpScreen({ navigation }) {
     const [showPasswordRules, setShowPasswordRules] = useState(false);
     const [submitted, setSubmitted]             = useState(false);
 
-    // Email check state
     const [emailTaken, setEmailTaken]       = useState(false);
     const [checkingEmail, setCheckingEmail] = useState(false);
     const emailCheckTimer                   = useRef(null);
@@ -64,7 +63,6 @@ export default function SignUpScreen({ navigation }) {
     const passwordRef        = useRef(null);
     const confirmPasswordRef = useRef(null);
 
-    // 🆕 Clear all fields when tab is focused
     useFocusEffect(
         useCallback(() => {
             setFirstName('');
@@ -93,7 +91,6 @@ export default function SignUpScreen({ navigation }) {
         return `${mm}/${dd}/${yyyy}`;
     };
 
-    // Debounced email check
     const handleEmailChange = (text) => {
         setEmail(text);
         setEmailTaken(false);
@@ -126,7 +123,7 @@ export default function SignUpScreen({ navigation }) {
             Alert.alert('Missing Fields', 'Please fill in required fields.');
             return;
         }
-        if (!email.trim() || !isValidEmail(email)) {
+        if (!isValidEmail(email)) {
             Alert.alert('Invalid Email', 'Please enter a valid email address.');
             return;
         }
@@ -164,6 +161,10 @@ export default function SignUpScreen({ navigation }) {
                 setUserToken(token);
                 setUser(data.user);
                 setHasMembership(false);
+
+                // 🆕 Register push token immediately after signup
+                registerPushToken(data.user.id);
+
                 Alert.alert('Success', 'Account created successfully!');
             } else {
                 Alert.alert('Error', data.message || 'Signup failed');
@@ -176,7 +177,6 @@ export default function SignUpScreen({ navigation }) {
         }
     };
 
-    // Validation states
     const emailTouched   = email.length > 0;
     const emailValid     = isValidEmail(email);
     const confirmTouched = confirmPassword.length > 0;
@@ -184,11 +184,9 @@ export default function SignUpScreen({ navigation }) {
     const pwValid        = isPasswordValid(password);
     const pwTouched      = password.length > 0;
 
-    // Email field status
     const emailError   = emailTouched && (!emailValid || emailTaken);
     const emailSuccess = emailTouched && emailValid && !emailTaken && !checkingEmail;
 
-    // 🆕 Missing required fields after submit
     const firstNameMissing = submitted && !firstName.trim();
     const lastNameMissing  = submitted && !lastName.trim();
     const emailMissing     = submitted && !email.trim();
@@ -249,7 +247,6 @@ export default function SignUpScreen({ navigation }) {
                     blurOnSubmit={false}
                 />
             </View>
-            {/* {firstNameMissing && <Text style={styles.fieldError}>First name is required</Text>} */}
 
             {/* Middle Name */}
             <View style={styles.inputWrapper}>
@@ -282,7 +279,6 @@ export default function SignUpScreen({ navigation }) {
                     blurOnSubmit={false}
                 />
             </View>
-            {/* {lastNameMissing && <Text style={styles.fieldError}>Last name is required</Text>} */}
 
             {/* Birthday */}
             <TouchableOpacity style={styles.inputWrapper} onPress={() => setShowDatePicker(true)} activeOpacity={0.8}>
@@ -375,7 +371,6 @@ export default function SignUpScreen({ navigation }) {
                     )
                 )}
             </View>
-            {/* {emailMissing && <Text style={styles.fieldError}>Email is required</Text>} */}
             {emailTouched && !emailValid && <Text style={styles.fieldError}>Please enter a valid email address</Text>}
             {emailTouched && emailValid && emailTaken && <Text style={styles.fieldError}>This email is already registered</Text>}
 
@@ -409,7 +404,6 @@ export default function SignUpScreen({ navigation }) {
                     <Ionicons name={showPassword ? 'eye-outline' : 'eye-off-outline'} size={20} color="#6B7280" />
                 </TouchableOpacity>
             </View>
-            {/* {passwordMissing && <Text style={styles.fieldError}>Password is required</Text>} */}
 
             {/* Password rules */}
             <View style={styles.rulesBox}>
@@ -454,7 +448,6 @@ export default function SignUpScreen({ navigation }) {
                     <Ionicons name={showConfirmPassword ? 'eye-outline' : 'eye-off-outline'} size={20} color="#6B7280" />
                 </TouchableOpacity>
             </View>
-            {/* {confirmMissing && <Text style={styles.fieldError}>Please confirm your password</Text>} */}
             {confirmTouched && !passwordsMatch && <Text style={styles.fieldError}>Passwords do not match</Text>}
 
             {/* ── Submit ───────────────────────────────────── */}
@@ -482,7 +475,6 @@ const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: '#191919' },
     scrollContent: { paddingBottom: 20 },
 
-    // Toggle
     toggleContainer: {
         flexDirection: 'row',
         backgroundColor: '#262626',
@@ -498,32 +490,25 @@ const styles = StyleSheet.create({
     toggleText: { color: '#6B7280', fontSize: 14, fontWeight: '600' },
     toggleTextActive: { color: '#000', fontWeight: 'bold' },
 
-    // Note
     note: { flexDirection: 'row', alignItems: 'flex-start', gap: 6, backgroundColor: '#1a1400', borderRadius: 8, padding: 10, marginBottom: 8, borderWidth: 1, borderColor: '#E3B23C33' },
     noteText: { flex: 1, color: '#E3B23C', fontSize: 11, lineHeight: 16 },
 
-    // Section header
     sectionHeader: { flexDirection: 'row', alignItems: 'center', marginTop: 32, marginBottom: 8, gap: 10 },
     sectionTitle: { color: '#6B7280', fontSize: 13, fontWeight: '600' },
 
-    // Input fields
     inputWrapper: { flexDirection: 'row', alignItems: 'center', borderBottomWidth: 1, borderBottomColor: '#333', paddingHorizontal: 4, marginBottom: 4, backgroundColor: '#191919' },
     inputWrapperError: { borderBottomColor: '#ef4444' },
     inputWrapperSuccess: { borderBottomColor: '#22c55e' },
     icon: { marginRight: 10 },
     input: { flex: 1, paddingVertical: 16, color: '#fff', fontSize: 16, minHeight: 56 },
 
-    // Password rules
     rulesBox: { backgroundColor: '#1f1f1f', borderRadius: 8, padding: 10, marginBottom: 4, marginTop: 2, gap: 5, borderWidth: 1, borderColor: '#2d2d2d' },
     ruleRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
     ruleText: { color: '#6B7280', fontSize: 12 },
     ruleTextPassed: { color: '#22c55e' },
 
-    // Feedback
     fieldError: { color: '#ef4444', fontSize: 12, marginLeft: 4, marginBottom: 8, marginTop: 2 },
-    successText: { color: '#22c55e', fontSize: 12, marginLeft: 4, marginBottom: 4, marginTop: 2 },
 
-    // Button
     button: { backgroundColor: '#E3B23C', paddingVertical: 16, borderRadius: 8, marginTop: 24, alignItems: 'center', justifyContent: 'center', minHeight: 54 },
     buttonDisabled: { opacity: 0.7 },
     buttonText: { color: '#000', fontSize: 16, fontWeight: 'bold' },

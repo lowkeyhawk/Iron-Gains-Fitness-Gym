@@ -23,35 +23,30 @@ export function useNotifications(userId) {
 
     // Notification tap listener — runs once on mount, no userId dependency
     useEffect(() => {
-        // Handle tap when app is in foreground or background
         const tapSubscription = Notifications.addNotificationResponseReceivedListener(response => {
             const url = response.notification.request.content.data?.url;
-            console.log('Notification tapped, data:', response.notification.request.content.data);
             if (url) {
                 Linking.openURL(url);
             }
         });
 
-        // Also handle last notification response
-        // This handles the case when app was CLOSED and user taps notification
         Notifications.getLastNotificationResponseAsync().then(response => {
             if (!response) return;
             const url = response.notification.request.content.data?.url;
-            console.log('Last notification response:', url);
             if (url) {
                 Linking.openURL(url);
             }
         });
 
         return () => tapSubscription.remove();
-    }, []); // ← empty dependency, runs once on mount
+    }, []);
 }
 
-async function registerPushToken(userId) {
-    console.log('Registering push token for user:', userId);
+export async function registerPushToken(userId) {
+    console.log('🔔 registerPushToken called for userId:', userId);
 
     if (!Device.isDevice) {
-        console.log('Push notifications require a real device.');
+        console.log('❌ Not a real device — skipping token registration');
         return;
     }
 
@@ -74,7 +69,7 @@ async function registerPushToken(userId) {
     }
 
     if (finalStatus !== 'granted') {
-        console.log('Push notification permission denied.');
+        console.log('❌ Push notification permission denied');
         return;
     }
 
@@ -91,9 +86,10 @@ async function registerPushToken(userId) {
         const tokenData = await Notifications.getExpoPushTokenAsync({ projectId });
         const token = tokenData.data;
 
-        console.log('✅ Expo Push Token:', token);
+        console.log('✅ Token generated:', token);
+        console.log('📡 Saving to:', API_ENDPOINTS.REGISTER_PUSH_TOKEN);
 
-        await fetch(API_ENDPOINTS.REGISTER_PUSH_TOKEN, {
+        const res = await fetch(API_ENDPOINTS.REGISTER_PUSH_TOKEN, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -102,6 +98,9 @@ async function registerPushToken(userId) {
                 token,
             }),
         });
+
+        const result = await res.json();
+        console.log('💾 Save result:', result);
 
     } catch (err) {
         console.error('❌ Failed to get push token:', err);

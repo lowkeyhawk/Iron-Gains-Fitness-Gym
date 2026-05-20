@@ -14,6 +14,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { API_ENDPOINTS } from '../../../config';
 import { useFocusEffect } from '@react-navigation/native';
 import { useContext } from 'react';
+import { registerPushToken } from '../../hooks/useNotifications'; // 🆕
 
 export default function LoginScreen() {
     const { setUserToken, setHasMembership, setUser } = useContext(AuthContext);
@@ -23,13 +24,10 @@ export default function LoginScreen() {
     const [loading, setLoading]   = useState(false);
     const [error, setError]       = useState('');
     const [showPassword, setShowPassword] = useState(false);
-
-    // 🆕 Track if submit was attempted (for red borders)
     const [submitted, setSubmitted] = useState(false);
 
     const passwordRef = useRef(null);
 
-    // 🆕 Clear fields when tab is focused
     useFocusEffect(
         useCallback(() => {
             setEmail('');
@@ -73,6 +71,9 @@ export default function LoginScreen() {
                 setUserToken(token);
                 setUser(data.user);
                 setHasMembership(!!data.user?.plan);
+
+                // 🆕 Register push token immediately after login
+                registerPushToken(data.user.id);
             } else {
                 setError(data.message || 'Login failed');
             }
@@ -84,7 +85,6 @@ export default function LoginScreen() {
         }
     };
 
-    // 🆕 Field error state — only show red after submit attempt
     const emailMissing    = submitted && !email.trim();
     const passwordMissing = submitted && !password.trim();
 
@@ -95,10 +95,7 @@ export default function LoginScreen() {
             showsVerticalScrollIndicator={false}
         >
             {/* Email */}
-            <View style={[
-                styles.inputWrapper,
-                emailMissing && styles.inputWrapperError,
-            ]}>
+            <View style={[styles.inputWrapper, emailMissing && styles.inputWrapperError]}>
                 <Ionicons
                     name="mail-outline"
                     size={22}
@@ -118,15 +115,10 @@ export default function LoginScreen() {
                     onChangeText={text => { setEmail(text); setError(''); }}
                 />
             </View>
-            {emailMissing && (
-                <Text style={styles.fieldError}>Email is required</Text>
-            )}
+            {emailMissing && <Text style={styles.fieldError}>Email is required</Text>}
 
             {/* Password */}
-            <View style={[
-                styles.inputWrapper,
-                passwordMissing && styles.inputWrapperError,
-            ]}>
+            <View style={[styles.inputWrapper, passwordMissing && styles.inputWrapperError]}>
                 <Ionicons
                     name="lock-closed-outline"
                     size={22}
@@ -156,9 +148,7 @@ export default function LoginScreen() {
                     />
                 </TouchableOpacity>
             </View>
-            {passwordMissing && (
-                <Text style={styles.fieldError}>Password is required</Text>
-            )}
+            {passwordMissing && <Text style={styles.fieldError}>Password is required</Text>}
 
             {/* General error */}
             {error && !emailMissing && !passwordMissing ? (
@@ -200,9 +190,7 @@ const styles = StyleSheet.create({
         marginBottom: 16,
         backgroundColor: '#191919',
     },
-    inputWrapperError: {
-        borderBottomColor: '#ef4444',
-    },
+    inputWrapperError: { borderBottomColor: '#ef4444' },
     icon: { marginRight: 10 },
     input: {
         flex: 1,
@@ -227,11 +215,7 @@ const styles = StyleSheet.create({
         marginTop: 8,
         paddingHorizontal: 4,
     },
-    errorText: {
-        color: '#ef4444',
-        fontSize: 14,
-        flex: 1,
-    },
+    errorText: { color: '#ef4444', fontSize: 14, flex: 1 },
     button: {
         backgroundColor: '#E3B23C',
         paddingVertical: 16,
@@ -242,10 +226,5 @@ const styles = StyleSheet.create({
         minHeight: 54,
     },
     buttonDisabled: { opacity: 0.7 },
-    buttonText: {
-        color: '#000',
-        textAlign: 'center',
-        fontSize: 16,
-        fontWeight: 'bold',
-    },
+    buttonText: { color: '#000', textAlign: 'center', fontSize: 16, fontWeight: 'bold' },
 });
